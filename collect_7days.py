@@ -1,0 +1,135 @@
+from datetime import timedelta
+
+from playwright.sync_api import sync_playwright
+
+from config import (
+    BASE_DATE,
+    HEADLESS,
+    PROFILE_DIR,
+    RAW_DIR,
+    UNIT_MAPPING_CSV,
+)
+from collector_common import (
+    AccessLimitError,
+    ModelMismatchError,
+    collect_assignment_html,
+    save_html,
+    wait_between_requests,
+)
+from machine_master import get_assignments_for_date, load_assignments
+
+
+DAYS = 7
+
+
+def build_target_dates():
+    # BASE_DATEを含めて BASE_DATE-6日 ～ BASE_DATE の7日間。
+    return [
+        BASE_DATE - timedelta(days=offset)
+        for offset in range(DAYS - 1, -1, -1)
+    ]
+
+
+def main():
+    master = load_assignments(UNIT_MAPPING_CSV)
+    target_dates = build_target_dates()
+
+    targets_by_date = {
+        target_date: get_assignments_for_date(master, target_date)
+        for target_date in target_dates
+    }
+    total = sum(len(rows) for rows in targets_by_date.values())
+
+    print("[MODE] 当日を含む直近7日分取得")
+    print(
+        f"[RANGE] {target_dates[0].isoformat()} "
+        f"～ {target_dates[-1].isoformat()}"
+    )
+    print(f"[TOTAL] {total}ページ")
+
+    success = []
+    failed = []
+    current = 0
+    stop_requested = False
+
+    with sync_playwright() as p:
+        context = p.chromium.launch_persistent_context(
+            user_data_dir=str(PROFILE_DIR),
+            headless=HEADLESS,
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+
+        try:
+            for target_date in target_dates:
+                targets = targets_by_date[target_date]
+                print("\n" + "=" * 60)
+                print(
+                    f"[DATE] {target_date.isoformat()} / {len(targets)}台"
+                )
+
+                for assignment in targets:
+                    current += 1
+                    print(f"\n[PROGRESS] {current}/{total}")
+
+                    try:
+                        html, _ = collect_assignment_html(
+                            page, assignment, target_date
+                        )
+                        save_html(assignment, target_date, html, RAW_DIR)
+                        success.append(
+                            (
+                                target_date.isoformat(),
+                                assignment.machine_id,
+                                assignment.unit,
+                            )
+                        )
+
+                    except AccessLimitError as exc:
+                        print(f"[ERROR] {exc}")
+                        print("[STOP] アクセス制限を検出したため処理を終了します")
+                        stop_requested = True
+                        break
+
+                    except ModelMismatchError as exc:
+                        print(f"[MODEL_MISMATCH] {exc}")
+                        failed.append(
+                            (
+                                target_date.isoformat(),
+                                assignment.machine_id,
+                                assignment.unit,
+                                "MODEL_MISMATCH",
+                            )
+                        )
+
+                    except RuntimeError as exc:
+                        print(f"[ERROR] {exc}")
+                        failed.append(
+                            (
+                                target_date.isoformat(),
+                                assignment.machine_id,
+                                assignment.unit,
+                                str(exc),
+                            )
+                        )
+
+                    if current < total:
+                        wait_between_requests()
+
+                if stop_requested:
+                    break
+
+        finally:
+            context.close()
+
+    print("\n" + "=" * 60)
+    print("[RESULT]")
+    print(f"成功: {len(success)}ページ")
+    print(f"失敗: {len(failed)}ページ")
+    if failed:
+        print("失敗一覧:")
+        for target_date, machine_id, unit, reason in failed:
+            print(f"  {target_date} / {machine_id} / {unit}: {reason}")
+
+
+if __name__ == "__main__":
+    main()
