@@ -23,7 +23,7 @@ PROFILE_DIR = Path("./browser_profile").resolve()
 RAW_DIR = Path("./data/raw")
 PROCESSED_DIR = Path("./data/processed")
 
-HEADLESS = False
+HEADLESS = True
 WAIT_SECONDS = 2.0
 NAVIGATION_TIMEOUT_MS = 30_000
 

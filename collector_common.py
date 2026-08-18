@@ -1,7 +1,9 @@
 from pathlib import Path
 from time import sleep
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import (
+    TimeoutError as PlaywrightTimeoutError,
+)
 
 from config import NAVIGATION_TIMEOUT_MS, WAIT_SECONDS
 from machine_master import UnitAssignment, normalize_model
@@ -53,67 +55,106 @@ def check_response(response) -> None:
         raise AccessLimitError(f"HTTP {response.status} が返されました")
 
 
-def collect_assignment_html(page, assignment: UnitAssignment, target_date):
-    url = build_url(assignment.store_id, assignment.unit, target_date)
-
-    print("-" * 60)
-    print(f"[MACHINE_ID] {assignment.machine_id}")
-    print(f"[STORE]      {assignment.store_id}")
-    print(f"[UNIT]       {assignment.unit}")
-    print(f"[DATE]       {target_date.isoformat()}")
-    print(f"[EXPECTED]   {assignment.model}")
+def collect_assignment_html(
+    page,
+    url,
+    machine_id,
+    store_id,
+    unit,
+    target_date,
+    expected_model,
+):
+    print(f"[MACHINE_ID] {machine_id}")
+    print(f"[STORE]      {store_id}")
+    print(f"[UNIT]       {unit}")
+    print(f"[DATE]       {target_date}")
+    print(f"[EXPECTED]   {expected_model}")
     print(f"[GET]        {url}")
 
-    response = page.goto(
-        url,
-        wait_until="domcontentloaded",
-        timeout=NAVIGATION_TIMEOUT_MS,
-    )
-    check_response(response)
-
-    accept_terms_if_needed(page, assignment.store_id)
-
-    expected_unit = f"unit={assignment.unit}"
-    expected_date = f"target_date={target_date.isoformat()}"
-    if expected_unit not in page.url or expected_date not in page.url:
+    # --------------------------------------------------
+    # 1. ナビゲーション
+    #
+    # DOMContentLoaded 全体を待たず、
+    # document の読み込み開始までで goto を完了させる
+    # --------------------------------------------------
+    try:
         response = page.goto(
             url,
-            wait_until="domcontentloaded",
+            wait_until="commit",
             timeout=NAVIGATION_TIMEOUT_MS,
         )
-        check_response(response)
 
+    except PlaywrightTimeoutError as e:
+        raise RuntimeError(
+            f"ページへの接続自体がタイムアウトしました: "
+            f"unit={unit}, date={target_date}"
+        ) from e
+
+    # --------------------------------------------------
+    # 2. HTTPステータス確認
+    # --------------------------------------------------
+    check_response(response)
+
+    # --------------------------------------------------
+    # 3. 利用規約ページまたは台詳細のDOMが
+    #    出現するまで待つ
+    # --------------------------------------------------
+    try:
+        page.locator(
+            "#pachinkoTi, .accept_btn button"
+        ).first.wait_for(
+            state="visible",
+            timeout=NAVIGATION_TIMEOUT_MS,
+        )
+
+    except PlaywrightTimeoutError as e:
+        raise RuntimeError(
+            f"台詳細ページの主要要素が表示されませんでした: "
+            f"unit={unit}, date={target_date}, url={page.url}"
+        ) from e
+
+    # --------------------------------------------------
+    # 4. 利用規約
+    # --------------------------------------------------
+    accept_terms_if_needed(page, store_id)
+
+    # --------------------------------------------------
+    # 5. 台詳細が表示されたことを明示的に確認
+    # --------------------------------------------------
     try:
         page.locator("#pachinkoTi").wait_for(
             state="visible",
             timeout=NAVIGATION_TIMEOUT_MS,
         )
-    except PlaywrightTimeoutError as exc:
+
+    except PlaywrightTimeoutError as e:
         raise RuntimeError(
-            f"{assignment.store_id}/{assignment.unit}番台 "
-            f"{target_date.isoformat()} の詳細ページを確認できませんでした"
-        ) from exc
+            f"台詳細ページが表示されませんでした: "
+            f"unit={unit}, date={target_date}"
+        ) from e
 
+    # --------------------------------------------------
+    # 6. 機種名確認
+    # --------------------------------------------------
     actual_model = (
-        page.locator("#pachinkoTi strong").first.text_content() or ""
-    ).strip()
-
-    # staleな台番号マスタで別機種を誤取得することを防ぐ。
-    if normalize_model(actual_model) != normalize_model(assignment.model):
-        raise ModelMismatchError(
-            "機種名が台マスタと一致しません。"
-            f" machine_id={assignment.machine_id}, unit={assignment.unit}, "
-            f"expected={assignment.model!r}, actual={actual_model!r}"
-        )
-
-    print(f"[ACTUAL]     {actual_model}")
-    print(f"[TITLE]      {page.title()}")
-    print(
-        "[GRAPH SCRIPT] "
-        f"{page.locator('script[data-plot-graph-script]').count()} 件"
+        page.locator("#pachinkoTi strong").first.inner_text().strip()
     )
 
-    return page.content(), actual_model
+    print(f"[ACTUAL]     {actual_model}")
+
+    if normalize_model(actual_model) != normalize_model(expected_model):
+        raise ModelMismatchError(
+            "機種名が台マスタと一致しません。"
+            f" machine_id={machine_id}, unit={unit}, "
+            f"expected={expected_model!r}, actual={actual_model!r}"
+        )
+
+    # --------------------------------------------------
+    # 7. JavaScript入りDOMを取得
+    # --------------------------------------------------
+    html = page.content()
+
+    return html, actual_model
 
 
 def save_html(

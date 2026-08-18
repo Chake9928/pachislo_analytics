@@ -12,6 +12,7 @@ from config import (
 from collector_common import (
     AccessLimitError,
     ModelMismatchError,
+    build_url,
     collect_assignment_html,
     save_html,
     wait_between_requests,
@@ -72,8 +73,19 @@ def main():
                     print(f"\n[PROGRESS] {current}/{total}")
 
                     try:
+                        url = build_url(
+                            assignment.store_id,
+                            assignment.unit,
+                            target_date,
+                        )
                         html, _ = collect_assignment_html(
-                            page, assignment, target_date
+                            page=page,
+                            url=url,
+                            machine_id=assignment.machine_id,
+                            store_id=assignment.store_id,
+                            unit=assignment.unit,
+                            target_date=target_date,
+                            expected_model=assignment.model,
                         )
                         save_html(assignment, target_date, html, RAW_DIR)
                         success.append(

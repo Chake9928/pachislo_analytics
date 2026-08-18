@@ -163,6 +163,6 @@ store_daily_snapshots.snapshot_date
 
 注意
 ----
-Raw HTML自体のSupabase Storageアップロードはv3ではまだ行わない。
+Raw HTML自体のSupabase Storageアップロードは行わない。
 source_pages.raw_storage_pathには現在ローカルパスを保存する。
 Storageへ移行するときはこの列をObject Storageのキーへ差し替えられる。
