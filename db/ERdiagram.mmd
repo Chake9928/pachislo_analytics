@@ -1,0 +1,180 @@
+erDiagram
+
+    stores ||--o{ machine_placements : "配置される"
+    stores ||--o{ store_daily_snapshots : "日次情報を持つ"
+    stores ||--o{ machine_daily_summaries : "遊技データを持つ"
+    stores ||--o{ jackpot_events : "大当たり履歴を持つ"
+    stores ||--o{ slump_points : "スランプ履歴を持つ"
+    stores ||--o{ source_pages : "取得元"
+
+    models ||--o{ machines : "実台を持つ"
+
+    machines ||--o{ machine_placements : "配置履歴を持つ"
+    machines ||--o{ machine_daily_summaries : "日次データを持つ"
+    machines ||--o{ jackpot_events : "大当たり履歴を持つ"
+    machines ||--o{ slump_points : "スランプ履歴を持つ"
+    machines ||--o{ machine_daily_metrics : "分析指標を持つ"
+    machines ||--o{ source_pages : "取得される"
+
+    collection_runs ||--o{ source_pages : "取得する"
+
+    source_pages ||--o{ machine_daily_summaries : "解析元"
+    source_pages ||--o{ jackpot_events : "解析元"
+    source_pages ||--o{ slump_points : "解析元"
+    source_pages ||--o{ store_daily_snapshots : "解析元"
+
+    stores {
+        bigint store_id PK "店舗ID"
+        text source_system "データ取得元システム"
+        integer source_store_id "取得元店舗ID"
+        text store_name "店舗名"
+        boolean is_active "収集対象フラグ"
+        timestamptz created_at "登録日時"
+        timestamptz updated_at "更新日時"
+    }
+
+    models {
+        bigint model_id PK "機種ID"
+        text source_system "データ取得元システム"
+        text source_model_name "取得元機種名"
+        text model_name "正規化機種名"
+        text machine_type "遊技種別"
+        text guide_url "遊技説明URL"
+        timestamptz created_at "登録日時"
+        timestamptz updated_at "更新日時"
+    }
+
+    machines {
+        bigint machine_id PK "実台ID"
+        text machine_code UK "実台コード"
+        bigint model_id FK "機種ID"
+        date first_seen_date "初回確認日"
+        date last_seen_date "最終確認日"
+        text status "実台ステータス"
+        text note "備考"
+        timestamptz created_at "登録日時"
+        timestamptz updated_at "更新日時"
+    }
+
+    machine_placements {
+        bigint placement_id PK "配置履歴ID"
+        bigint machine_id FK "実台ID"
+        bigint store_id FK "店舗ID"
+        integer unit_number "台番号"
+        numeric play_rate_yen "貸玉単価"
+        date valid_from "配置有効開始日"
+        date valid_to "配置有効終了日"
+        text source "配置情報登録元"
+        timestamptz created_at "登録日時"
+    }
+
+    collection_runs {
+        uuid run_id PK "収集実行ID"
+        text mode "収集モード"
+        timestamptz started_at "収集開始日時"
+        timestamptz finished_at "収集終了日時"
+        text collector_version "収集プログラムバージョン"
+        integer target_store_count "対象店舗数"
+        integer target_machine_count "対象台数"
+        integer success_count "収集成功件数"
+        integer failure_count "収集失敗件数"
+        text status "収集実行ステータス"
+    }
+
+    source_pages {
+        bigint source_page_id PK "取得元ページID"
+        uuid run_id FK "収集実行ID"
+        bigint store_id FK "店舗ID"
+        bigint machine_id FK "実台ID"
+        integer unit_number "取得時台番号"
+        date requested_data_date "要求対象日"
+        text source_url "取得元URL"
+        smallint http_status "HTTPステータス"
+        timestamptz fetched_at "実取得日時"
+        timestamptz source_updated_at "サイト表示上の最終更新日時"
+        text content_hash "HTMLコンテンツハッシュ"
+        text raw_storage_path "Raw HTML保存先"
+        text parser_version "解析プログラムバージョン"
+        text parse_status "解析ステータス"
+        text error_message "解析エラーメッセージ"
+    }
+
+    store_daily_snapshots {
+        bigint store_id FK "店舗ID"
+        date snapshot_date PK "スナップショット日"
+        integer pachinko_count "パチンコ設置台数"
+        integer slot_count "スロット設置台数"
+        bigint source_page_id FK "取得元ページID"
+        timestamptz observed_at "観測日時"
+    }
+
+    machine_daily_summaries {
+        bigint machine_id PK,FK "実台ID"
+        bigint store_id FK "店舗ID"
+        date data_date PK "遊技日"
+        integer unit_number "当日台番号"
+        numeric play_rate_yen "貸玉単価"
+        integer bb_count "BB回数"
+        integer rb_count "RB回数"
+        integer art_count "ART回数"
+        integer current_start "スタート回数"
+        integer max_hold "最大持ち玉"
+        integer total_start "累計スタート"
+        integer prev_day_final_start "前日最終スタート"
+        numeric combined_prob_denominator "合成確率分母"
+        numeric bb_prob_denominator "BB確率分母"
+        numeric rb_prob_denominator "RB確率分母"
+        numeric art_prob_denominator "ART確率分母"
+        timestamptz source_updated_at "サイト表示上の最終更新日時"
+        timestamptz observed_at "観測日時"
+        bigint source_page_id FK "取得元ページID"
+        jsonb extra_metrics "追加指標JSON"
+        timestamptz updated_at "更新日時"
+    }
+
+    jackpot_events {
+        bigint event_id PK "大当たりイベントID"
+        bigint machine_id FK "実台ID"
+        bigint store_id FK "店舗ID"
+        date data_date "遊技日"
+        integer unit_number "当日台番号"
+        smallint event_seq "イベント通番"
+        smallint source_row_order "HTML上行順"
+        integer jackpot_no "大当たり番号"
+        integer start_count "スタート回数"
+        integer payout "出玉"
+        text event_type "大当たり種別"
+        time event_time "イベント時刻"
+        timestamptz event_at "イベント日時"
+        bigint source_page_id FK "取得元ページID"
+    }
+
+    slump_points {
+        bigint slump_point_id PK "スランプポイントID"
+        bigint machine_id FK "実台ID"
+        bigint store_id FK "店舗ID"
+        date data_date "遊技日"
+        integer unit_number "当日台番号"
+        smallint point_seq "ポイント通番"
+        timestamptz sampled_at "サンプル日時"
+        integer slump_value "スランプグラフ値"
+        bigint source_page_id FK "取得元ページID"
+    }
+
+    machine_daily_metrics {
+        bigint machine_id PK,FK "実台ID"
+        date data_date PK "遊技日"
+        integer slump_final_value "最終スランプ値"
+        integer slump_max_value "最大スランプ値"
+        integer slump_min_value "最小スランプ値"
+        integer slump_range "スランプ値レンジ"
+        integer slump_point_count "スランプポイント数"
+        timestamptz first_sample_at "最初サンプル日時"
+        timestamptz last_sample_at "最終サンプル日時"
+        integer max_start_count "最大スタート回数"
+        numeric avg_start_count "平均スタート回数"
+        integer max_event_payout "最大イベント出玉"
+        bigint event_payout_sum "イベント出玉合計"
+        timestamptz calculated_at "分析指標算出日時"
+        text calculation_version "分析ロジックバージョン"
+    }
