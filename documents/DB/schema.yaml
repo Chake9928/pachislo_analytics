@@ -1,0 +1,1337 @@
+schema_version: 1.0.0
+project:
+  name: pachislo_analytics
+  logical_name: パチスロ分析基盤
+  project_context: エスパ攻略
+  description: 複数ホールのパチスロ台データを収集・蓄積・分析し、将来Webサービスから分析情報を提供するためのデータ基盤。
+database:
+  dbms: PostgreSQL
+  platform: Supabase
+  schema: public
+  timezone_policy: timestamptzを使用し、アプリケーション上の主要な業務タイムゾーンはAsia/Tokyoとして扱う。
+  ddl_file: db/pachislo_supabase_schema.sql
+  source_of_truth_policy:
+    runtime_schema: DDLが実際のDB物理定義の正本。
+    ai_and_design_context: このschema.yamlが論理名・設計意図・AI向けコンテキストの正本。
+    documentation: テーブル定義書.xlsxとMermaid ER図は人間向け参照資料。
+design_policies:
+  machine_identity:
+    rule: unit_numberを実台の識別子として扱わない。
+    detail: machine_idを実台個体の不変IDとし、machine_codeを人間向けコードとして使用する。台番号変更はmachine_placementsで履歴管理する。
+  store_identity:
+    rule: 自システムのstore_idと取得元サービスのsource_store_idを分離する。
+    reason: 将来複数のデータ取得元サービスを扱えるようにするため。
+  model_identity:
+    rule: source_model_nameとmodel_nameを分離する。
+    detail: source_model_nameは取得元表記、model_nameは自システム内の正規化名として扱う。
+  fact_denormalization:
+    rule: 日次Fact/Event/Timeseries側にもstore_idとunit_numberを保持する。
+    reason: 取得当時の事実を固定し、店舗・台番号軸の分析性能を確保するため。
+  raw_html:
+    rule: Raw HTML本体をPostgreSQLへ保存しない。
+    detail: HTMLはSupabase Storage等のObject Storageまたはローカルファイルとして保持し、source_pages.raw_storage_pathに保存先を記録する。
+  date_and_time_semantics:
+    data_date: 遊技データが属する日。
+    requested_data_date: CollectorがURL等で要求した対象日。
+    fetched_at: HTMLを実際に取得した日時。
+    source_updated_at: 取得元サイトがページ上に表示した最終更新日時。
+    observed_at: Parser/Collectorがその情報を観測した日時。
+    warning: data_date、fetched_at、source_updated_atを同一概念として扱わない。
+  source_vs_derived:
+    source_fact_tables:
+    - machine_daily_summaries
+    - jackpot_events
+    - slump_points
+    derived_tables:
+    - machine_daily_metrics
+    rule: 取得元に存在する値と、自システムで計算した派生値を分離する。派生値は生データから再計算可能とする。
+  slump_value_semantics:
+    rule: slump_points.slump_valueは取得元グラフのY値として保持する。
+    warning: 分析上は差枚相当値として利用できるが、DB生データ層では厳密な最終差枚と断定しない。
+  max_hold_semantics:
+    rule: machine_daily_summaries.max_holdとslump_pointsの最大値を混同しない。
+    detail: 最大持ち玉は取得元サマリの独立項目であり、スランプグラフの最大プラス値とは別指標。
+  idempotency:
+    rule: 同一HTMLやリアルタイム再取得を複数回処理しても重複しないよう、PK/UNIQUEを利用したUPSERTを基本とする。
+    keys:
+      machine_daily_summaries:
+      - machine_id
+      - data_date
+      jackpot_events:
+      - machine_id
+      - data_date
+      - event_seq
+      slump_points:
+      - machine_id
+      - data_date
+      - sampled_at
+      machine_daily_metrics:
+      - machine_id
+      - data_date
+  weekly_graph:
+    persist: false
+    reason: 日別slump_pointsから再構築可能であり、Raw HTMLにも元情報が残るため。
+ingestion_rules:
+  master_resolution:
+  - HTMLをDBへ登録する前に、store_id・unit_number・data_dateから有効なmachine_placementを解決する。
+  - unit_numberだけでmachine_idを決定しない。
+  - 配置期間外の実台へ過去日データを紐付けない。
+  model_verification:
+  - 取得したHTMLの機種名とmaster上の期待機種名を比較する。
+  - 不一致の場合は別機種への台番号変更等の可能性があるため、原則として当該HTMLを実台データとして保存しない。
+  jackpot_event_sequence:
+  - event_seqは遊技日の古いイベントから1,2,3...と採番する。
+  - HTML上の表示順が最新→過去でも、DB上は安定した時系列通番を使用する。
+  slump_points:
+  - HTML内に複数日のdata-slamp-graph-dateが存在する場合、それぞれの日付を解析する。
+  - 各日についてmachine_placementを再解決し、同一実台であると確認できる場合のみ登録する。
+  - グラフの最終サンプル時刻が閉店時刻より前の場合があるため、slump_final_valueを厳密な閉店最終差枚とは扱わない。
+  store_snapshot:
+  - 店舗サイドバー等の設置台数はページの遊技対象日ではなく、取得・観測時点の店舗情報として扱う。
+  raw_traceability:
+  - 構造化データは可能な限りsource_page_idで取得元HTMLへ追跡可能にする。
+  - content_hashを利用して同一内容のHTMLを識別できるようにする。
+allowed_values:
+  models.machine_type:
+  - slot
+  - pachinko
+  - unknown
+  machines.status:
+  - active
+  - removed
+  - unknown
+  collection_runs.mode:
+  - realtime
+  - today
+  - 7days
+  - manual
+  collection_runs.status:
+  - running
+  - success
+  - partial
+  - error
+  source_pages.parse_status:
+  - pending
+  - success
+  - partial
+  - error
+relationships:
+- from: machines.model_id
+  to: models.model_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: machine_placements.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: machine_placements.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: source_pages.run_id
+  to: collection_runs.run_id
+  cardinality: many_to_one
+  on_delete: set_null
+- from: source_pages.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: source_pages.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: store_daily_snapshots.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: store_daily_snapshots.source_page_id
+  to: source_pages.source_page_id
+  cardinality: many_to_one
+  on_delete: set_null
+- from: machine_daily_summaries.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: machine_daily_summaries.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: machine_daily_summaries.source_page_id
+  to: source_pages.source_page_id
+  cardinality: many_to_one
+  on_delete: set_null
+- from: jackpot_events.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: jackpot_events.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: jackpot_events.source_page_id
+  to: source_pages.source_page_id
+  cardinality: many_to_one
+  on_delete: set_null
+- from: slump_points.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: slump_points.store_id
+  to: stores.store_id
+  cardinality: many_to_one
+  on_delete: no_action
+- from: slump_points.source_page_id
+  to: source_pages.source_page_id
+  cardinality: many_to_one
+  on_delete: set_null
+- from: machine_daily_metrics.machine_id
+  to: machines.machine_id
+  cardinality: many_to_one
+  on_delete: no_action
+tables:
+  stores:
+    logical_name: 店舗マスタ
+    category: master
+    logical_category: マスタ
+    description: データ取得対象となる店舗を管理する。取得元サービス上の店舗IDと、自システム内部の店舗IDを分離して保持する。
+    data_class: master
+    primary_key:
+    - store_id
+    columns:
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 自システム内部の店舗識別子。取得元サービスの店舗IDとは分離する。
+        default:
+          kind: identity
+        primary_key: true
+      source_system:
+        logical_name: データ取得元システム
+        type: text
+        nullable: false
+        description: データ取得元サービスを識別する文字列。現在は daidata を使用する。
+        default:
+          kind: expression
+          value: '''daidata'''
+      source_store_id:
+        logical_name: 取得元店舗ID
+        type: integer
+        nullable: false
+        description: '取得元サービス上の店舗ID。例: 台データオンラインの100928。'
+      store_name:
+        logical_name: 店舗名
+        type: text
+        nullable: false
+        description: 店舗表示名。
+      is_active:
+        logical_name: 収集対象フラグ
+        type: boolean
+        nullable: false
+        description: 現在Collectorの収集対象とする店舗かを表す。
+        default:
+          kind: expression
+          value: 'true'
+      created_at:
+        logical_name: 登録日時
+        type: timestamptz
+        nullable: false
+        description: レコード登録日時。
+        default:
+          kind: expression
+          value: now()
+      updated_at:
+        logical_name: 更新日時
+        type: timestamptz
+        nullable: false
+        description: レコード更新日時。更新トリガーで自動更新する。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique:
+      - name: uq_stores_source
+        columns:
+        - source_system
+        - source_store_id
+      check: []
+    indexes: []
+    population:
+      method: master_initialization
+      current_source: master/unit_mapping.csv
+  models:
+    logical_name: 機種マスタ
+    category: master
+    logical_category: マスタ
+    description: 機種情報を管理する。取得元サイトの表記と、分析・表示用に正規化した機種名を分離して保持する。
+    data_class: master
+    primary_key:
+    - model_id
+    columns:
+      model_id:
+        logical_name: 機種ID
+        type: bigint
+        nullable: false
+        description: 自システム内部の機種識別子。
+        default:
+          kind: identity
+        primary_key: true
+      source_system:
+        logical_name: データ取得元システム
+        type: text
+        nullable: false
+        description: 機種名を取得したサービス識別子。
+        default:
+          kind: expression
+          value: '''daidata'''
+      source_model_name:
+        logical_name: 取得元機種名
+        type: text
+        nullable: false
+        description: 取得元HTMLに表示される機種名を原則そのまま保持する。
+      model_name:
+        logical_name: 正規化機種名
+        type: text
+        nullable: false
+        description: 分析・表示・名寄せに利用する正規化後の機種名。
+      machine_type:
+        logical_name: 遊技種別
+        type: text
+        nullable: false
+        description: 遊技種別。slot / pachinko / unknown。
+        default:
+          kind: expression
+          value: '''unknown'''
+      guide_url:
+        logical_name: 遊技説明URL
+        type: text
+        nullable: true
+        description: 取得元ページに存在する遊技説明ページURL等。
+      created_at:
+        logical_name: 登録日時
+        type: timestamptz
+        nullable: false
+        description: レコード登録日時。
+        default:
+          kind: expression
+          value: now()
+      updated_at:
+        logical_name: 更新日時
+        type: timestamptz
+        nullable: false
+        description: レコード更新日時。更新トリガーで自動更新する。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique:
+      - name: uq_models_source
+        columns:
+        - source_system
+        - source_model_name
+      check:
+      - name: ck_models_machine_type
+        expression: machine_type in ('slot', 'pachinko', 'unknown')
+    indexes: []
+    population:
+      method: master_initialization
+      current_source: master/unit_mapping.csv and HTML model name verification
+  machines:
+    logical_name: 実台マスタ
+    category: master
+    logical_category: マスタ
+    description: 物理的・論理的な実台個体を不変IDで管理する。台番号が変更されても同一実台として追跡するための中心マスタ。
+    data_class: master
+    primary_key:
+    - machine_id
+    columns:
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: DB内部で使用する不変の実台識別子。
+        default:
+          kind: identity
+        primary_key: true
+      machine_code:
+        logical_name: 実台コード
+        type: text
+        nullable: false
+        description: '人間が扱いやすい実台コード。例: M0001。台番号とは別物。'
+        unique: true
+      model_id:
+        logical_name: 機種ID
+        type: bigint
+        nullable: false
+        description: 当該実台が属する機種。
+        foreign_key:
+          table: models
+          column: model_id
+          on_delete: no_action
+      first_seen_date:
+        logical_name: 初回確認日
+        type: date
+        nullable: true
+        description: 収集または手動確認で最初に存在を確認した日。
+      last_seen_date:
+        logical_name: 最終確認日
+        type: date
+        nullable: true
+        description: 収集または手動確認で最後に存在を確認した日。
+      status:
+        logical_name: 実台ステータス
+        type: text
+        nullable: false
+        description: 実台の管理状態。active / removed / unknown。
+        default:
+          kind: expression
+          value: '''active'''
+      note:
+        logical_name: 備考
+        type: text
+        nullable: true
+        description: 配置変更や個別確認事項等の任意メモ。
+      created_at:
+        logical_name: 登録日時
+        type: timestamptz
+        nullable: false
+        description: レコード登録日時。
+        default:
+          kind: expression
+          value: now()
+      updated_at:
+        logical_name: 更新日時
+        type: timestamptz
+        nullable: false
+        description: レコード更新日時。更新トリガーで自動更新する。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique:
+      - name: machines_machine_code_key
+        columns:
+        - machine_code
+      check:
+      - name: ck_machines_status
+        expression: status in ('active', 'removed', 'unknown')
+      - name: ck_machines_seen_dates
+        expression: first_seen_date is null or last_seen_date is null or last_seen_date >= first_seen_date
+    indexes:
+    - name: idx_machines_model_id
+      columns_or_expression: model_id
+      unique: false
+    population:
+      method: master_initialization
+      current_source: master/unit_mapping.csv
+  machine_placements:
+    logical_name: 実台配置履歴
+    category: master_history
+    logical_category: マスタ・履歴
+    description: 実台が、どの店舗の何番台として、どの期間配置されていたかを管理する。台番号変更や店舗移動を履歴として保持する。
+    data_class: master_history
+    primary_key:
+    - placement_id
+    columns:
+      placement_id:
+        logical_name: 配置履歴ID
+        type: bigint
+        nullable: false
+        description: 実台配置履歴の識別子。
+        default:
+          kind: identity
+        primary_key: true
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: 配置対象の実台ID。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 配置先の店舗ID。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      unit_number:
+        logical_name: 台番号
+        type: integer
+        nullable: false
+        description: 当該期間に店舗内で使用されていた台番号。実台の不変IDとしては使用しない。
+      play_rate_yen:
+        logical_name: 貸玉単価
+        type: numeric(8,2)
+        nullable: true
+        description: '当該配置での貸玉単価。例: 21.7。'
+      valid_from:
+        logical_name: 配置有効開始日
+        type: date
+        nullable: true
+        description: 配置が有効となる開始日。NULLは開始日不明または開放端を意味する。
+      valid_to:
+        logical_name: 配置有効終了日
+        type: date
+        nullable: true
+        description: 配置が有効でなくなる終了日。NULLは現在有効または開放端を意味する。
+      source:
+        logical_name: 配置情報登録元
+        type: text
+        nullable: false
+        description: 配置情報の登録元。現状は manual を基本とする。
+        default:
+          kind: expression
+          value: '''manual'''
+      created_at:
+        logical_name: 登録日時
+        type: timestamptz
+        nullable: false
+        description: レコード登録日時。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique:
+      - name: uq_machine_placements_start
+        columns:
+        - machine_id
+        - store_id
+        - unit_number
+        - valid_from
+      check:
+      - name: ck_machine_placements_unit_number
+        expression: unit_number > 0
+      - name: ck_machine_placements_play_rate
+        expression: play_rate_yen is null or play_rate_yen >= 0
+      - name: ck_machine_placements_valid_period
+        expression: valid_from is null or valid_to is null or valid_to >= valid_from
+    indexes:
+    - name: idx_machine_placements_store_unit_period
+      columns_or_expression: store_id, unit_number, valid_from, valid_to
+      unique: false
+    - name: idx_machine_placements_machine_period
+      columns_or_expression: machine_id, valid_from, valid_to
+      unique: false
+    population:
+      method: master_initialization_and_manual_history_update
+      current_source: master/unit_mapping.csv
+  collection_runs:
+    logical_name: データ収集実行履歴
+    category: operation
+    logical_category: 運用
+    description: Collectorの実行単位を記録し、収集件数、成功・失敗、プログラムバージョン、実行状態を追跡する。
+    data_class: operation
+    primary_key:
+    - run_id
+    columns:
+      run_id:
+        logical_name: 収集実行ID
+        type: uuid
+        nullable: false
+        description: Collector実行単位のUUID。
+        default:
+          kind: expression
+          value: gen_random_uuid()
+        primary_key: true
+      mode:
+        logical_name: 収集モード
+        type: text
+        nullable: false
+        description: 収集モード。realtime / today / 7days / manual。
+      started_at:
+        logical_name: 収集開始日時
+        type: timestamptz
+        nullable: false
+        description: 収集処理開始日時。
+        default:
+          kind: expression
+          value: now()
+      finished_at:
+        logical_name: 収集終了日時
+        type: timestamptz
+        nullable: true
+        description: 収集処理終了日時。
+      collector_version:
+        logical_name: 収集プログラムバージョン
+        type: text
+        nullable: true
+        description: Collectorコードのバージョン識別子。
+      target_store_count:
+        logical_name: 対象店舗数
+        type: integer
+        nullable: false
+        description: 当該実行で対象とした店舗数。
+        default:
+          kind: expression
+          value: '0'
+      target_machine_count:
+        logical_name: 対象台数
+        type: integer
+        nullable: false
+        description: 当該実行で対象とした実台数。
+        default:
+          kind: expression
+          value: '0'
+      success_count:
+        logical_name: 収集成功件数
+        type: integer
+        nullable: false
+        description: 取得成功件数。
+        default:
+          kind: expression
+          value: '0'
+      failure_count:
+        logical_name: 収集失敗件数
+        type: integer
+        nullable: false
+        description: 取得失敗件数。
+        default:
+          kind: expression
+          value: '0'
+      status:
+        logical_name: 収集実行ステータス
+        type: text
+        nullable: false
+        description: 実行状態。running / success / partial / error。
+        default:
+          kind: expression
+          value: '''running'''
+    constraints:
+      unique: []
+      check:
+      - name: ck_collection_runs_mode
+        expression: mode in ('realtime', 'today', '7days', 'manual')
+      - name: ck_collection_runs_status
+        expression: status in ('running', 'success', 'partial', 'error')
+      - name: ck_collection_runs_counts
+        expression: target_store_count >= 0 and target_machine_count >= 0 and success_count >= 0 and failure_count >= 0
+    indexes:
+    - name: idx_collection_runs_started_at
+      columns_or_expression: started_at desc
+      unique: false
+    population:
+      method: collector_or_ingestion_runtime
+  source_pages:
+    logical_name: 取得元ページ管理
+    category: operation_raw_metadata
+    logical_category: 運用・Raw管理
+    description: 取得したHTMLページのメタ情報を管理する。Raw HTML本体はObject Storageまたはローカルに保存し、そのパス、ハッシュ、取得日時、解析状態を保持する。
+    data_class: raw_metadata
+    primary_key:
+    - source_page_id
+    columns:
+      source_page_id:
+        logical_name: 取得元ページID
+        type: bigint
+        nullable: false
+        description: 取得HTMLページを識別する内部ID。
+        default:
+          kind: identity
+        primary_key: true
+      run_id:
+        logical_name: 収集実行ID
+        type: uuid
+        nullable: true
+        description: 当該HTMLを取得したCollector実行ID。
+        foreign_key:
+          table: collection_runs
+          column: run_id
+          on_delete: set_null
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 対象店舗。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: true
+        description: 対象実台。特定不能な場合を考慮しNULLを許容する。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      unit_number:
+        logical_name: 取得時台番号
+        type: integer
+        nullable: false
+        description: HTML取得時点の台番号。
+      requested_data_date:
+        logical_name: 要求対象日
+        type: date
+        nullable: true
+        description: URLのtarget_date等で要求した対象日。遊技日と一致することを期待するが、別概念として保持する。
+      source_url:
+        logical_name: 取得元URL
+        type: text
+        nullable: false
+        description: 取得元URL。
+      http_status:
+        logical_name: HTTPステータス
+        type: smallint
+        nullable: true
+        description: HTTPレスポンスステータス。
+      fetched_at:
+        logical_name: 実取得日時
+        type: timestamptz
+        nullable: false
+        description: Collectorが実際にHTMLを取得した日時。
+        default:
+          kind: expression
+          value: now()
+      source_updated_at:
+        logical_name: サイト表示上の最終更新日時
+        type: timestamptz
+        nullable: true
+        description: HTML上に表示された最終更新日時。遊技日とは別概念。
+      content_hash:
+        logical_name: HTMLコンテンツハッシュ
+        type: text
+        nullable: true
+        description: HTML本文のSHA-256等。重複判定や変更検知に利用する。
+      raw_storage_path:
+        logical_name: Raw HTML保存先
+        type: text
+        nullable: true
+        description: Raw HTMLの保存先パス。DBにはHTML本体を格納しない。
+      parser_version:
+        logical_name: 解析プログラムバージョン
+        type: text
+        nullable: true
+        description: HTMLを解析したParserのバージョン。
+      parse_status:
+        logical_name: 解析ステータス
+        type: text
+        nullable: false
+        description: 解析状態。pending / success / partial / error。
+        default:
+          kind: expression
+          value: '''pending'''
+      error_message:
+        logical_name: 解析エラーメッセージ
+        type: text
+        nullable: true
+        description: 解析失敗時のエラー内容。
+    constraints:
+      unique: []
+      check:
+      - name: ck_source_pages_unit_number
+        expression: unit_number > 0
+      - name: ck_source_pages_http_status
+        expression: http_status is null or http_status between 100 and 599
+      - name: ck_source_pages_parse_status
+        expression: parse_status in ('pending', 'success', 'partial', 'error')
+    indexes:
+    - name: idx_source_pages_run_id
+      columns_or_expression: run_id
+      unique: false
+    - name: idx_source_pages_store_date
+      columns_or_expression: store_id, requested_data_date
+      unique: false
+    - name: idx_source_pages_machine_date
+      columns_or_expression: machine_id, requested_data_date
+      unique: false
+    - name: idx_source_pages_fetched_at
+      columns_or_expression: fetched_at desc
+      unique: false
+    population:
+      method: collector_or_ingestion_runtime
+      raw_payload_storage: Object Storage or local filesystem; DB stores metadata/path only
+  store_daily_snapshots:
+    logical_name: 店舗日次スナップショット
+    category: fact_snapshot
+    logical_category: 実績
+    description: 店舗単位で観測できるパチンコ・スロット設置台数等を日次で保持し、増台・減台など店舗構成の変化を追跡する。
+    data_class: source_derived_fact
+    primary_key:
+    - store_id
+    - snapshot_date
+    columns:
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 対象店舗。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      snapshot_date:
+        logical_name: スナップショット日
+        type: date
+        nullable: false
+        description: 店舗情報を観測した日。過去遊技日のdata_dateとは必ずしも一致しない。
+      pachinko_count:
+        logical_name: パチンコ設置台数
+        type: integer
+        nullable: true
+        description: HTMLから観測できたパチンコ設置台数。
+      slot_count:
+        logical_name: スロット設置台数
+        type: integer
+        nullable: true
+        description: HTMLから観測できたスロット設置台数。
+      source_page_id:
+        logical_name: 取得元ページID
+        type: bigint
+        nullable: true
+        description: 当該スナップショットの取得根拠となったページ。
+        foreign_key:
+          table: source_pages
+          column: source_page_id
+          on_delete: set_null
+      observed_at:
+        logical_name: 観測日時
+        type: timestamptz
+        nullable: false
+        description: 店舗情報を実際に観測した日時。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique: []
+      check:
+      - name: ck_store_daily_snapshots_counts
+        expression: (pachinko_count is null or pachinko_count >= 0) and (slot_count is null or slot_count >= 0)
+    indexes: []
+    population:
+      method: html_parser
+      source_note: Sidebar installation counts are treated as observation-time store information, not necessarily historical
+        data_date information.
+  machine_daily_summaries:
+    logical_name: 実台日次サマリ
+    category: fact_daily
+    logical_category: 実績
+    description: 1実台×1遊技日の基本実績を保持する。HTMLに表示されたBB/RB/ART、スタート、最大持ち玉、各確率等を中心に保存する。
+    data_class: source_fact
+    primary_key:
+    - machine_id
+    - data_date
+    columns:
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: 対象実台。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 当該遊技日の店舗。分析効率と取得当時の事実固定のためFact側にも保持する。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      data_date:
+        logical_name: 遊技日
+        type: date
+        nullable: false
+        description: 遊技データの日付。fetched_atやsource_updated_atとは別概念。
+      unit_number:
+        logical_name: 当日台番号
+        type: integer
+        nullable: false
+        description: 当該遊技日に使用されていた台番号。取得当時の事実として保持する。
+      play_rate_yen:
+        logical_name: 貸玉単価
+        type: numeric(8,2)
+        nullable: true
+        description: 当該遊技日の貸玉単価。
+      bb_count:
+        logical_name: BB回数
+        type: integer
+        nullable: true
+        description: HTMLサマリ上のBB回数。
+      rb_count:
+        logical_name: RB回数
+        type: integer
+        nullable: true
+        description: HTMLサマリ上のRB回数。
+      art_count:
+        logical_name: ART回数
+        type: integer
+        nullable: true
+        description: HTMLサマリ上のART回数。
+      current_start:
+        logical_name: スタート回数
+        type: integer
+        nullable: true
+        description: HTMLサマリ上のスタート回数。
+      max_hold:
+        logical_name: 最大持ち玉
+        type: integer
+        nullable: true
+        description: HTMLサマリ上の最大持ち玉。スランプグラフ最大値とは別指標。
+      total_start:
+        logical_name: 累計スタート
+        type: integer
+        nullable: true
+        description: HTMLサマリ上の累計スタート。
+      prev_day_final_start:
+        logical_name: 前日最終スタート
+        type: integer
+        nullable: true
+        description: HTMLサマリ上の前日最終スタート。
+      combined_prob_denominator:
+        logical_name: 合成確率分母
+        type: numeric(12,3)
+        nullable: true
+        description: 合成確率1/xの分母xを保持する。
+      bb_prob_denominator:
+        logical_name: BB確率分母
+        type: numeric(12,3)
+        nullable: true
+        description: BB確率1/xの分母xを保持する。
+      rb_prob_denominator:
+        logical_name: RB確率分母
+        type: numeric(12,3)
+        nullable: true
+        description: RB確率1/xの分母xを保持する。
+      art_prob_denominator:
+        logical_name: ART確率分母
+        type: numeric(12,3)
+        nullable: true
+        description: ART確率1/xの分母xを保持する。
+      source_updated_at:
+        logical_name: サイト表示上の最終更新日時
+        type: timestamptz
+        nullable: true
+        description: 元ページ上に表示された最終更新日時。
+      observed_at:
+        logical_name: 観測日時
+        type: timestamptz
+        nullable: false
+        description: Parser/Collector側で当該状態を観測した日時。
+        default:
+          kind: expression
+          value: now()
+      source_page_id:
+        logical_name: 取得元ページID
+        type: bigint
+        nullable: true
+        description: 最新状態の根拠となる取得元ページ。
+        foreign_key:
+          table: source_pages
+          column: source_page_id
+          on_delete: set_null
+      extra_metrics:
+        logical_name: 追加指標JSON
+        type: jsonb
+        nullable: false
+        description: 将来の機種固有項目や未定義項目を一時的に保持するJSON領域。
+        default:
+          kind: expression
+          value: '''{}''::jsonb'
+      updated_at:
+        logical_name: 更新日時
+        type: timestamptz
+        nullable: false
+        description: レコード更新日時。UPSERT時に更新トリガーで自動更新する。
+        default:
+          kind: expression
+          value: now()
+    constraints:
+      unique: []
+      check:
+      - name: ck_machine_daily_summaries_unit
+        expression: unit_number > 0
+      - name: ck_machine_daily_summaries_counts
+        expression: (bb_count is null or bb_count >= 0) and (rb_count is null or rb_count >= 0) and (art_count is null or
+          art_count >= 0) and (current_start is null or current_start >= 0) and (max_hold is null or max_hold >= 0) and (total_start
+          is null or total_start >= 0) and (prev_day_final_start is null or prev_day_final_start >= 0)
+    indexes:
+    - name: idx_machine_daily_summaries_store_date
+      columns_or_expression: store_id, data_date desc
+      unique: false
+    - name: idx_machine_daily_summaries_unit_date
+      columns_or_expression: store_id, unit_number, data_date desc
+      unique: false
+    population:
+      method: html_parser_upsert
+      upsert_key:
+      - machine_id
+      - data_date
+  jackpot_events:
+    logical_name: 大当たり履歴
+    category: fact_event
+    logical_category: 実績・イベント
+    description: HTMLの大当たり履歴をイベント単位で保持する。時刻、種別、スタート回数、出玉等を時系列分析に利用する。
+    data_class: source_fact
+    primary_key:
+    - event_id
+    columns:
+      event_id:
+        logical_name: 大当たりイベントID
+        type: bigint
+        nullable: false
+        description: 大当たりイベントの内部ID。
+        default:
+          kind: identity
+        primary_key: true
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: 対象実台。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 当該遊技日の店舗。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      data_date:
+        logical_name: 遊技日
+        type: date
+        nullable: false
+        description: イベントが属する遊技日。
+      unit_number:
+        logical_name: 当日台番号
+        type: integer
+        nullable: false
+        description: 当該遊技日に使用されていた台番号。
+      event_seq:
+        logical_name: イベント通番
+        type: smallint
+        nullable: false
+        description: 日内で古いイベントから1,2,3...と付与する安定通番。リアルタイム再取得でも既存番号をずらさない。
+      source_row_order:
+        logical_name: HTML上行順
+        type: smallint
+        nullable: true
+        description: HTMLテーブル上の行順。サイト表示は最新→過去の順である場合がある。
+      jackpot_no:
+        logical_name: 大当たり番号
+        type: integer
+        nullable: true
+        description: HTMLの「大当たり」欄に表示される番号。ART行では0等を取り得る。
+      start_count:
+        logical_name: スタート回数
+        type: integer
+        nullable: true
+        description: HTMLの「スタート」欄。
+      payout:
+        logical_name: 出玉
+        type: integer
+        nullable: true
+        description: HTMLの「出玉」欄。負値を取り得るため非負制約は設けない。
+      event_type:
+        logical_name: 大当たり種別
+        type: text
+        nullable: true
+        description: HTMLの「種別」欄。BB / ART等。機種差を許容するためtext。
+      event_time:
+        logical_name: イベント時刻
+        type: time
+        nullable: true
+        description: HTMLの「時間」欄。
+      event_at:
+        logical_name: イベント日時
+        type: timestamptz
+        nullable: true
+        description: data_dateとevent_timeを結合したイベント日時。
+      source_page_id:
+        logical_name: 取得元ページID
+        type: bigint
+        nullable: true
+        description: イベント情報の取得元ページ。
+        foreign_key:
+          table: source_pages
+          column: source_page_id
+          on_delete: set_null
+    constraints:
+      unique:
+      - name: uq_jackpot_events_seq
+        columns:
+        - machine_id
+        - data_date
+        - event_seq
+      check:
+      - name: ck_jackpot_events_unit
+        expression: unit_number > 0
+      - name: ck_jackpot_events_seq
+        expression: event_seq > 0
+      - name: ck_jackpot_events_start
+        expression: start_count is null or start_count >= 0
+    indexes:
+    - name: idx_jackpot_events_machine_date_time
+      columns_or_expression: machine_id, data_date, event_time
+      unique: false
+    - name: idx_jackpot_events_store_date
+      columns_or_expression: store_id, data_date
+      unique: false
+    population:
+      method: html_parser_upsert
+      upsert_key:
+      - machine_id
+      - data_date
+      - event_seq
+  slump_points:
+    logical_name: スランプグラフ時系列
+    category: fact_timeseries
+    logical_category: 実績・時系列
+    description: HTML内のjqPlot用スランプグラフ系列をサンプル点単位で保持する。全テーブル中でも大きな件数になることを想定する。
+    data_class: source_fact
+    primary_key:
+    - slump_point_id
+    columns:
+      slump_point_id:
+        logical_name: スランプポイントID
+        type: bigint
+        nullable: false
+        description: スランプグラフサンプル点の内部ID。
+        default:
+          kind: identity
+        primary_key: true
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: 対象実台。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      store_id:
+        logical_name: 店舗ID
+        type: bigint
+        nullable: false
+        description: 当該遊技日の店舗。
+        foreign_key:
+          table: stores
+          column: store_id
+          on_delete: no_action
+      data_date:
+        logical_name: 遊技日
+        type: date
+        nullable: false
+        description: スランプサンプルが属する遊技日。
+      unit_number:
+        logical_name: 当日台番号
+        type: integer
+        nullable: false
+        description: 当該遊技日に使用されていた台番号。
+      point_seq:
+        logical_name: ポイント通番
+        type: smallint
+        nullable: true
+        description: 日内でのサンプル順。表示・復元用。
+      sampled_at:
+        logical_name: サンプル日時
+        type: timestamptz
+        nullable: false
+        description: jqPlot系列に含まれるサンプル日時。
+      slump_value:
+        logical_name: スランプグラフ値
+        type: integer
+        nullable: false
+        description: jqPlot系列のY値。分析上は差枚相当値として扱うが、生データ層ではサイトのグラフ値として保持する。
+      source_page_id:
+        logical_name: 取得元ページID
+        type: bigint
+        nullable: true
+        description: 当該サンプル点を取得したページ。
+        foreign_key:
+          table: source_pages
+          column: source_page_id
+          on_delete: set_null
+    constraints:
+      unique:
+      - name: uq_slump_points_sample
+        columns:
+        - machine_id
+        - data_date
+        - sampled_at
+      check:
+      - name: ck_slump_points_unit
+        expression: unit_number > 0
+      - name: ck_slump_points_seq
+        expression: point_seq is null or point_seq > 0
+    indexes:
+    - name: idx_slump_points_machine_date_seq
+      columns_or_expression: machine_id, data_date, point_seq
+      unique: false
+    - name: idx_slump_points_store_date
+      columns_or_expression: store_id, data_date
+      unique: false
+    - name: idx_slump_points_sampled_at
+      columns_or_expression: sampled_at
+      unique: false
+    population:
+      method: html_parser_upsert
+      upsert_key:
+      - machine_id
+      - data_date
+      - sampled_at
+  machine_daily_metrics:
+    logical_name: 実台日次分析指標
+    category: derived_daily
+    logical_category: 分析・派生
+    description: machine_daily_summaries、jackpot_events、slump_pointsから算出した日次分析指標を保持する。生データから再生成可能な派生データ。
+    data_class: derived
+    primary_key:
+    - machine_id
+    - data_date
+    columns:
+      machine_id:
+        logical_name: 実台ID
+        type: bigint
+        nullable: false
+        description: 分析対象実台。
+        foreign_key:
+          table: machines
+          column: machine_id
+          on_delete: no_action
+      data_date:
+        logical_name: 遊技日
+        type: date
+        nullable: false
+        description: 分析対象の遊技日。
+      slump_final_value:
+        logical_name: 最終スランプ値
+        type: integer
+        nullable: true
+        description: 当日最後のスランプサンプル値。厳密な閉店時最終差枚とは限らない。
+      slump_max_value:
+        logical_name: 最大スランプ値
+        type: integer
+        nullable: true
+        description: 当日スランプサンプル中の最大値。
+      slump_min_value:
+        logical_name: 最小スランプ値
+        type: integer
+        nullable: true
+        description: 当日スランプサンプル中の最小値。
+      slump_range:
+        logical_name: スランプ値レンジ
+        type: integer
+        nullable: true
+        description: slump_max_value - slump_min_value。
+      slump_point_count:
+        logical_name: スランプポイント数
+        type: integer
+        nullable: true
+        description: 当日のスランプサンプル数。
+      first_sample_at:
+        logical_name: 最初サンプル日時
+        type: timestamptz
+        nullable: true
+        description: 当日最初のスランプサンプル日時。
+      last_sample_at:
+        logical_name: 最終サンプル日時
+        type: timestamptz
+        nullable: true
+        description: 当日最後のスランプサンプル日時。
+      max_start_count:
+        logical_name: 最大スタート回数
+        type: integer
+        nullable: true
+        description: 大当たり履歴から算出した最大スタート回数。
+      avg_start_count:
+        logical_name: 平均スタート回数
+        type: numeric(12,3)
+        nullable: true
+        description: 大当たり履歴から算出した平均スタート回数。
+      max_event_payout:
+        logical_name: 最大イベント出玉
+        type: integer
+        nullable: true
+        description: 大当たり履歴の出玉欄における最大値。
+      event_payout_sum:
+        logical_name: イベント出玉合計
+        type: bigint
+        nullable: true
+        description: 大当たり履歴の出玉欄合計。
+      calculated_at:
+        logical_name: 分析指標算出日時
+        type: timestamptz
+        nullable: false
+        description: 分析指標を計算した日時。
+        default:
+          kind: expression
+          value: now()
+      calculation_version:
+        logical_name: 分析ロジックバージョン
+        type: text
+        nullable: true
+        description: 分析ロジックのバージョン。再計算時の差異追跡に使用する。
+    constraints:
+      unique: []
+      check:
+      - name: ck_machine_daily_metrics_point_count
+        expression: slump_point_count is null or slump_point_count >= 0
+      - name: ck_machine_daily_metrics_max_start
+        expression: max_start_count is null or max_start_count >= 0
+      - name: ck_machine_daily_metrics_sample_period
+        expression: first_sample_at is null or last_sample_at is null or last_sample_at >= first_sample_at
+    indexes:
+    - name: idx_machine_daily_metrics_date
+      columns_or_expression: data_date desc
+      unique: false
+    population:
+      method: derived_calculation_upsert
+      upsert_key:
+      - machine_id
+      - data_date
+      derived_from:
+      - machine_daily_summaries
+      - jackpot_events
+      - slump_points
+database_objects:
+  extensions:
+  - name: pgcrypto
+    purpose: gen_random_uuid()を利用するため。
+  functions:
+  - name: public.set_updated_at
+    language: plpgsql
+    purpose: UPDATE時にupdated_atをnow()へ自動更新する。
+  triggers:
+  - name: trg_stores_set_updated_at
+    table: stores
+    timing: before update
+    function: public.set_updated_at
+  - name: trg_models_set_updated_at
+    table: models
+    timing: before update
+    function: public.set_updated_at
+  - name: trg_machines_set_updated_at
+    table: machines
+    timing: before update
+    function: public.set_updated_at
+  - name: trg_machine_daily_summaries_set_updated_at
+    table: machine_daily_summaries
+    timing: before update
+    function: public.set_updated_at
+security:
+  rls:
+    recommended: true
+    note: publicスキーマのテーブルはSupabase公開時にRLSを有効化する。RLSポリシー自体は現行DDLには含めていない。
+  backend_credentials:
+    rule: service role / secret keyはバックエンド・Collector専用とし、ブラウザへ公開しない。
+ai_usage_notes:
+- DB変更時はschema.yamlとDDLの両方を更新する。
+- DDLとschema.yamlが矛盾する場合、現行DB物理定義についてはDDLを優先し、設計意図についてはschema.yamlを確認する。
+- machine_idとunit_numberを同一視しない。
+- data_dateとsource_updated_at/fetched_atを同一視しない。
+- machine_daily_metricsの値を取得元サイトの生データとして扱わない。
+- slump_valueを厳密な差枚・閉店時最終差枚と断定しない。
+- 新しい取得元項目を追加する場合、既存の意味に無理に当てはめず、必要なら新規カラムまたはextra_metricsを検討する。
