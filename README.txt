@@ -13,15 +13,17 @@ Pachislo Collector v3 - Supabase Integration
 config.py                 共通設定 / Supabase環境変数
 machine_master.py         unit_mapping.csv 読込・整合性チェック・日付解決
 collector_common.py       Playwright収集共通処理
-collect_oneday.py         指定日1日分収集
-collect_7days.py          直近7日分収集
-validate_master.py        台マスタ整合性チェック
-init_master.py            CSV -> Supabaseマスタ同期
 html_parser.py            HTML -> Python構造化データ（DB非依存）
 supabase_client.py        Supabaseクライアント生成
 supabase_writer.py        各テーブルへの INSERT / UPSERT
-ingest_html.py            raw HTMLを一括解析してSupabaseへ投入
-parse_timeseries.py       従来のCSV時系列出力（ローカル確認用として残置）
+slump_series.py           スランプ時系列の連結・平均化
+scripts/scraping/collect_oneday.py   指定日1日分収集
+scripts/scraping/collect_7days.py    直近7日分収集
+scripts/db/validate_master.py        台マスタ整合性チェック
+scripts/db/init_master.py            CSV -> Supabaseマスタ同期
+scripts/db/ingest_html.py            raw HTMLを一括解析してSupabaseへ投入
+scripts/analysis/parse_timeseries.py 従来のCSV時系列出力（ローカル確認用）
+scripts/analysis/plot_slump.py       slump_points からグラフ生成
 master/unit_mapping.csv   唯一のローカル台マスタ
 db/pachislo_supabase_schema.sql  Supabase/PostgreSQL DDL
 .env.example              環境変数サンプル
@@ -62,12 +64,12 @@ valid_to         配置有効終了日。空欄=現在も有効
 --------------
 まずローカル検証:
 
-    python validate_master.py
-    python init_master.py --dry-run
+    python scripts/db/validate_master.py
+    python scripts/db/init_master.py --dry-run
 
 問題なければSupabaseへ同期:
 
-    python init_master.py
+    python scripts/db/init_master.py
 
 同期対象:
     stores
@@ -85,15 +87,15 @@ rawディレクトリ構造が以下なら日付を自動判定する。
 
 全件dry-run:
 
-    python ingest_html.py --dry-run
+    python scripts/db/ingest_html.py --dry-run
 
 単体HTMLを日付指定してdry-run:
 
-    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
+    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
 
 解析結果JSONも確認する場合:
 
-    python ingest_html.py C:/path/to/3075.html \
+    python scripts/db/ingest_html.py C:/path/to/3075.html \
         --data-date 2026-08-12 \
         --dry-run \
         --debug-json data/processed/3075_debug.json
@@ -102,11 +104,11 @@ Supabase投入
 ------------
 全raw HTML:
 
-    python ingest_html.py
+    python scripts/db/ingest_html.py
 
 単体HTML:
 
-    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
+    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
 
 投入・更新するテーブル
 ----------------------

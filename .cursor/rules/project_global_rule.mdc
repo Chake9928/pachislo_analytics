@@ -15,6 +15,11 @@
 - parser: HTMLから構造化データ抽出
 - db: SupabaseへのINSERT/UPSERT
 - Raw HTMLと構造化データを分離する
+- 実行スクリプトは scripts/ 配下に分類する
+  - scripts/scraping: HTML収集
+  - scripts/db: マスタ検証・同期と HTML 投入
+  - scripts/analysis: スランプ解析・可視化
+- 共通ライブラリ（config / parser / writer 等）はリポジトリルートに置く
 
 ## Data model rules
 - 台番号を実台IDとして扱わない

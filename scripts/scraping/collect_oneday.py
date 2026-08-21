@@ -4,7 +4,7 @@ unit_mapping.csv の対象日配置に基づき、Playwrightで台データサ�
 HTMLを取得し data/raw/{store_id}/{YYYY-MM-DD}/{unit}.html に保存する。
 
 実行:
-    python collect_oneday.py YYYY-MM-DD
+    python scripts/scraping/collect_oneday.py YYYY-MM-DD
 
 引数:
     date  取得対象日（YYYY-MM-DD）。必須。
@@ -14,7 +14,11 @@ HTMLを取得し data/raw/{store_id}/{YYYY-MM-DD}/{unit}.html に保存する。
 """
 
 import argparse
+import sys
 from datetime import date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from playwright.sync_api import sync_playwright
 

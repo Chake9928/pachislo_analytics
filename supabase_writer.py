@@ -1,10 +1,10 @@
 """解析済みページを Supabase 各テーブルへ INSERT / UPSERT する。
 
 source_pages / machine_daily_summaries / jackpot_events / slump_points 等へ
-冪等に書き込む。ingest_html.py から利用する。単体では実行しない。
+冪等に書き込む。scripts/db/ingest_html.py から利用する。単体では実行しない。
 
 実行:
-    なし（ライブラリ）。投入は python ingest_html.py
+    なし（ライブラリ）。投入は python scripts/db/ingest_html.py
 """
 
 from datetime import datetime, timezone
@@ -50,7 +50,7 @@ class SupabaseWriter:
         if not row:
             raise RuntimeError(
                 f"stores未登録: source={source_system}, source_store_id={source_store_id}. "
-                "先に python init_master.py を実行してください。"
+                "先に python scripts/db/init_master.py を実行してください。"
             )
         self._store_cache[key] = row["store_id"]
         return row["store_id"]
@@ -67,7 +67,7 @@ class SupabaseWriter:
         )
         if not row:
             raise RuntimeError(
-                f"machines未登録: machine_code={machine_code}. 先に python init_master.py を実行してください。"
+                f"machines未登録: machine_code={machine_code}. 先に python scripts/db/init_master.py を実行してください。"
             )
         self._machine_cache[machine_code] = row
         return row

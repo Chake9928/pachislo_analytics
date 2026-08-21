@@ -1,10 +1,10 @@
 """スランプ時系列の連結・平均化ロジック。
 
 日を跨いだ差枚の平行移動連結（chain_days）と、時刻バケット平均
-（average_series）を提供する。plot_slump.py から import して使う。
+（average_series）を提供する。scripts/analysis/plot_slump.py から import して使う。
 
 実行:
-    単体では実行しない。グラフ生成は python plot_slump.py
+    単体では実行しない。グラフ生成は python scripts/analysis/plot_slump.py
     テストは python -m unittest tests.test_slump_series
 """
 

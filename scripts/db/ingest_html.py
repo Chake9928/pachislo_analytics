@@ -4,11 +4,11 @@ data/raw 配下（または指定パス）のHTMLを html_parser で構造化し
 日次サマリ・大当たり・スランプ等をDBへ投入する。--dry-run では書き込まない。
 
 実行:
-    python ingest_html.py
-    python ingest_html.py --dry-run
-    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
-    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
-    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run --debug-json data/processed/3075_debug.json
+    python scripts/db/ingest_html.py
+    python scripts/db/ingest_html.py --dry-run
+    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
+    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
+    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run --debug-json data/processed/3075_debug.json
 
 引数:
     path            HTMLファイルまたはrawディレクトリ。省略時 data/raw
@@ -21,9 +21,12 @@ data/raw 配下（または指定パス）のHTMLを html_parser で構造化し
 
 import argparse
 import json
+import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import UUID
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from config import PARSER_VERSION, RAW_DIR, UNIT_MAPPING_CSV
 from html_parser import parse_html_file

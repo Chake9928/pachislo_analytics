@@ -4,13 +4,17 @@ config.py の BASE_DATE を終点とし、BASE_DATE-6日〜BASE_DATE の7日間�
 unit_mapping.csv の配置に従って取得する。保存先は collect_oneday.py と同じ。
 
 実行:
-    python collect_7days.py
+    python scripts/scraping/collect_7days.py
 
 オプション:
     なし。対象期間は config.py の BASE_DATE、待機間隔は WAIT_SECONDS を参照。
 """
 
+import sys
 from datetime import timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from playwright.sync_api import sync_playwright
 

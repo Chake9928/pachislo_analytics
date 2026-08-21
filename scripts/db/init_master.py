@@ -4,17 +4,21 @@ stores / models / machines / machine_placements を INSERT または更新する
 同じCSVで再実行可能。実台の model_id 付け替えは自動では行わない。
 
 実行:
-    python init_master.py --dry-run
-    python init_master.py
+    python scripts/db/init_master.py --dry-run
+    python scripts/db/init_master.py
 
 オプション:
     --dry-run  DBを更新せず、同期内容だけ表示する
 """
 
 import argparse
+import sys
 from collections import OrderedDict
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from config import UNIT_MAPPING_CSV
 from machine_master import UnitAssignment, load_assignments

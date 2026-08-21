@@ -4,9 +4,9 @@
 PNGと系列CSVを出力ディレクトリへ保存する。
 
 実行:
-    python plot_slump.py
-    python plot_slump.py --source-store-id 100928 --model "L ToLOVEるﾀﾞｰｸﾈｽver.8.7"
-    python plot_slump.py --out data/slump
+    python scripts/analysis/plot_slump.py
+    python scripts/analysis/plot_slump.py --source-store-id 100928 --model "L ToLOVEるﾀﾞｰｸﾈｽver.8.7"
+    python scripts/analysis/plot_slump.py --out data/slump
 
 オプション:
     --source-store-id  取得元店舗ID。省略時 100928
@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from config import SLUMP_DIR
 from machine_master import normalize_model

@@ -1,12 +1,12 @@
 """Playwrightによる台詳細HTML収集の共通処理。
 
 URL組み立て、利用規約同意、機種名照合、HTML保存を提供する。
-collect_oneday.py / collect_7days.py から import して使う。
+scripts/scraping の収集スクリプトから import して使う。
 
 実行:
     単体では実行しない。収集は以下のいずれか。
-        python collect_oneday.py YYYY-MM-DD
-        python collect_7days.py
+        python scripts/scraping/collect_oneday.py YYYY-MM-DD
+        python scripts/scraping/collect_7days.py
 """
 
 from pathlib import Path

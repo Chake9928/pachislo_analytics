@@ -4,7 +4,8 @@
 httpx クライアント付きで接続する。単体では実行しない。
 
 実行:
-    なし（ライブラリ）。接続確認を兼ねる処理は init_master.py / ingest_html.py。
+    なし（ライブラリ）。接続確認を兼ねる処理は
+    python scripts/db/init_master.py / python scripts/db/ingest_html.py
 """
 
 import os

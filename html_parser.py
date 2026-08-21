@@ -1,11 +1,11 @@
 """台詳細HTMLから日次サマリ・大当たり・スランプ等を抽出する（DB非依存）。
 
 parse_html_file() が入口。unit_mapping.csv で machine_id を解決し、
-ingest_html.py がこの結果を Supabase へ投入する。
+scripts/db/ingest_html.py がこの結果を Supabase へ投入する。
 
 実行:
-    単体では実行しない。解析・投入は python ingest_html.py
-    ローカル確認は python ingest_html.py --dry-run
+    単体では実行しない。解析・投入は python scripts/db/ingest_html.py
+    ローカル確認は python scripts/db/ingest_html.py --dry-run
 """
 
 import hashlib

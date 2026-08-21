@@ -4,7 +4,7 @@
 valid_from / valid_to で対象日の配置を解決する。
 
 実行:
-    単体では実行しない。検証は python validate_master.py
+    単体では実行しない。検証は python scripts/db/validate_master.py
 """
 
 import csv

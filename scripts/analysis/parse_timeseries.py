@@ -4,7 +4,7 @@ data/raw 配下を走査し、machine_id + 日付 + 時刻で重複排除した�
 data/processed/slump_timeseries.csv を書き出す。Supabaseには投入しない。
 
 実行:
-    python parse_timeseries.py
+    python scripts/analysis/parse_timeseries.py
 
 オプション:
     なし。入力は config.py の RAW_DIR、出力は PROCESSED_DIR を参照。
@@ -12,8 +12,11 @@ data/processed/slump_timeseries.csv を書き出す。Supabaseには投入しな
 
 import csv
 import re
+import sys
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from bs4 import BeautifulSoup
 
