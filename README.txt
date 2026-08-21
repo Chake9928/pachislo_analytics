@@ -13,7 +13,7 @@ Pachislo Collector v3 - Supabase Integration
 config.py                 共通設定 / Supabase環境変数
 machine_master.py         unit_mapping.csv 読込・整合性チェック・日付解決
 collector_common.py       Playwright収集共通処理
-collect_today.py          当日分収集
+collect_oneday.py         指定日1日分収集
 collect_7days.py          直近7日分収集
 validate_master.py        台マスタ整合性チェック
 init_master.py            CSV -> Supabaseマスタ同期

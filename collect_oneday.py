@@ -1,7 +1,9 @@
+import argparse
+from datetime import date
+
 from playwright.sync_api import sync_playwright
 
 from config import (
-    BASE_DATE,
     HEADLESS,
     PROFILE_DIR,
     RAW_DIR,
@@ -18,12 +20,28 @@ from collector_common import (
 from machine_master import get_assignments_for_date, load_assignments
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="指定日1日分の台データを収集する")
+    parser.add_argument(
+        "date",
+        help="取得対象日 YYYY-MM-DD",
+    )
+    return parser.parse_args()
+
+
 def main():
-    target_date = BASE_DATE
+    args = parse_args()
+    try:
+        target_date = date.fromisoformat(args.date)
+    except ValueError:
+        raise SystemExit(
+            f"日付の形式が不正です: {args.date}（YYYY-MM-DD で指定してください）"
+        )
+
     master = load_assignments(UNIT_MAPPING_CSV)
     targets = get_assignments_for_date(master, target_date)
 
-    print("[MODE] 当日1日分取得")
+    print("[MODE] 指定日1日分取得")
     print(f"[DATE] {target_date.isoformat()}")
     print(f"[TARGETS] {len(targets)}台")
 
