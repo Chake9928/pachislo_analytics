@@ -1,7 +1,8 @@
 """指定日1日分の台詳細HTMLを収集する。
 
 unit_mapping.csv の対象日配置に基づき、Playwrightで台データサイトから
-HTMLを取得し data/raw/{store_id}/{YYYY-MM-DD}/{unit}.html に保存する。
+HTMLを取得し data/raw/{store_id}/{model_id}/{YYYY-MM-DD}/{machine_id}.html に保存する。
+model_id は Supabase の models テーブルから解決する。
 
 実行:
     python scripts/scraping/collect_oneday.py YYYY-MM-DD
@@ -37,6 +38,7 @@ from collector_common import (
     wait_between_requests,
 )
 from machine_master import get_assignments_for_date, load_assignments
+from model_lookup import load_model_id_map, resolve_model_id
 
 
 def parse_args():
@@ -59,6 +61,7 @@ def main():
 
     master = load_assignments(UNIT_MAPPING_CSV)
     targets = get_assignments_for_date(master, target_date)
+    model_ids = load_model_id_map()
 
     print("[MODE] 指定日1日分取得")
     print(f"[DATE] {target_date.isoformat()}")
@@ -93,7 +96,12 @@ def main():
                         target_date=target_date,
                         expected_model=assignment.model,
                     )
-                    save_html(assignment, target_date, html, RAW_DIR)
+                    model_id = resolve_model_id(
+                        assignment.source_system,
+                        assignment.model,
+                        model_ids,
+                    )
+                    save_html(assignment, target_date, html, RAW_DIR, model_id)
                     success.append(assignment.machine_id)
 
                 except AccessLimitError as exc:

@@ -17,11 +17,14 @@ html_parser.py            HTML -> Python構造化データ（DB非依存）
 supabase_client.py        Supabaseクライアント生成
 supabase_writer.py        各テーブルへの INSERT / UPSERT
 slump_series.py           スランプ時系列の連結・平均化
+storage_paths.py          raw HTML / スランプ出力のパス規則
+model_lookup.py           models テーブルから model_id を解決
 scripts/scraping/collect_oneday.py   指定日1日分収集
 scripts/scraping/collect_7days.py    直近7日分収集
 scripts/db/validate_master.py        台マスタ整合性チェック
 scripts/db/init_master.py            CSV -> Supabaseマスタ同期
 scripts/db/ingest_html.py            raw HTMLを一括解析してSupabaseへ投入
+scripts/db/reorganize_storage.py     既存raw/スランプを機種別パスへ移動
 scripts/analysis/parse_timeseries.py 従来のCSV時系列出力（ローカル確認用）
 scripts/analysis/plot_slump.py       slump_points からグラフ生成
 master/unit_mapping.csv   唯一のローカル台マスタ
@@ -83,7 +86,25 @@ HTML解析のローカル確認
 ----------------------
 rawディレクトリ構造が以下なら日付を自動判定する。
 
-    data/raw/{store_id}/{YYYY-MM-DD}/{unit}.html
+    data/raw/{store_id}/{model_id}/{YYYY-MM-DD}/{machine_id}.html
+
+    例: data/raw/100928/1/2026-08-12/M0001.html
+
+スランプ出力も同じ店舗×機種先行:
+
+    data/slump/{store_id}/{model_id}/01_daily_by_machine/{YYYY-MM-DD}/
+    data/slump/{store_id}/{model_id}/02_chained_by_machine/
+    data/slump/{store_id}/{model_id}/03_daily_average/
+    data/slump/{store_id}/{model_id}/04_chained_average/
+    data/slump/{store_id}/{model_id}/series/
+
+旧形式（store_id/日付/台番号）も解析時は読み取れる。
+model_id は Supabase の models テーブルの機種ID。収集前に init_master.py が必要。
+
+既存ファイルを新パスへ移す:
+
+    python scripts/db/reorganize_storage.py --dry-run
+    python scripts/db/reorganize_storage.py
 
 全件dry-run:
 
@@ -91,14 +112,14 @@ rawディレクトリ構造が以下なら日付を自動判定する。
 
 単体HTMLを日付指定してdry-run:
 
-    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
+    python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12 --dry-run
 
 解析結果JSONも確認する場合:
 
-    python scripts/db/ingest_html.py C:/path/to/3075.html \
+    python scripts/db/ingest_html.py C:/path/to/M0001.html \
         --data-date 2026-08-12 \
         --dry-run \
-        --debug-json data/processed/3075_debug.json
+        --debug-json data/processed/M0001_debug.json
 
 Supabase投入
 ------------
@@ -108,7 +129,7 @@ Supabase投入
 
 単体HTML:
 
-    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
+    python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12
 
 投入・更新するテーブル
 ----------------------

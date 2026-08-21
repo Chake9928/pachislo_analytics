@@ -20,11 +20,15 @@ from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
-from machine_master import normalize_model, resolve_assignment
+from machine_master import (
+    normalize_model,
+    resolve_assignment,
+    resolve_assignment_by_machine_id,
+)
+from storage_paths import DATE_DIR_PATTERN, parse_raw_html_path
 
 
 JST = ZoneInfo("Asia/Tokyo")
-DATE_DIR_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 STORE_ID_PATTERN = re.compile(r"daidata\.goraggio\.com/(\d+)/")
 UNIT_PATTERN = re.compile(r"(\d+)番台")
 PLAY_RATE_PATTERN = re.compile(r"([0-9]+(?:\.[0-9]+)?)円")
@@ -190,9 +194,11 @@ def _detect_requested_date(path: Path, soup: BeautifulSoup, html: str, override:
 
 
 def _detect_store_id(path: Path, html: str) -> str:
-    # data/raw/{source_store_id}/{date}/{unit}.html
-    if DATE_DIR_PATTERN.match(path.parent.name) and path.parent.parent.name.isdigit():
-        return path.parent.parent.name
+    # data/raw/{store_id}/{model_id}/{date}/{machine_id}.html
+    # 旧: data/raw/{store_id}/{date}/{unit}.html
+    loc = parse_raw_html_path(path)
+    if loc.store_id:
+        return loc.store_id
     match = STORE_ID_PATTERN.search(html)
     if not match:
         raise ValueError(f"store_idを特定できません: {path}")
@@ -398,20 +404,38 @@ def parse_html_file(
     requested_data_date = _detect_requested_date(
         html_path, soup, html, requested_data_date, source_updated_at
     )
+    loc = parse_raw_html_path(html_path)
     source_store_id = _detect_store_id(html_path, html)
     unit = _detect_unit(html_path, soup)
 
-    assignment = resolve_assignment(
-        assignments,
-        source_store_id,
-        unit,
-        requested_data_date,
-        source_system=source_system,
-    )
-    if assignment is None:
-        raise ValueError(
-            f"台マスタに該当なし: {requested_data_date} store={source_store_id} unit={unit}"
+    if loc.machine_code:
+        assignment = resolve_assignment_by_machine_id(
+            assignments,
+            loc.machine_code,
+            requested_data_date,
         )
+        if assignment is None:
+            raise ValueError(
+                f"台マスタに該当なし: {requested_data_date} machine_id={loc.machine_code}"
+            )
+        if assignment.store_id != str(source_store_id):
+            raise ValueError(
+                f"store_id不一致: path={source_store_id} master={assignment.store_id} "
+                f"machine_id={loc.machine_code}"
+            )
+        unit = unit or assignment.unit
+    else:
+        assignment = resolve_assignment(
+            assignments,
+            source_store_id,
+            unit,
+            requested_data_date,
+            source_system=source_system,
+        )
+        if assignment is None:
+            raise ValueError(
+                f"台マスタに該当なし: {requested_data_date} store={source_store_id} unit={unit}"
+            )
 
     source_model_name = _text(soup.select_one("#pachinkoTi strong"))
     if normalize_model(source_model_name) != normalize_model(assignment.model):

@@ -34,6 +34,7 @@ from collector_common import (
     wait_between_requests,
 )
 from machine_master import get_assignments_for_date, load_assignments
+from model_lookup import load_model_id_map, resolve_model_id
 
 
 DAYS = 7
@@ -49,6 +50,7 @@ def build_target_dates():
 
 def main():
     master = load_assignments(UNIT_MAPPING_CSV)
+    model_ids = load_model_id_map()
     target_dates = build_target_dates()
 
     targets_by_date = {
@@ -103,7 +105,14 @@ def main():
                             target_date=target_date,
                             expected_model=assignment.model,
                         )
-                        save_html(assignment, target_date, html, RAW_DIR)
+                        model_id = resolve_model_id(
+                            assignment.source_system,
+                            assignment.model,
+                            model_ids,
+                        )
+                        save_html(
+                            assignment, target_date, html, RAW_DIR, model_id
+                        )
                         success.append(
                             (
                                 target_date.isoformat(),

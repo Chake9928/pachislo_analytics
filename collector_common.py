@@ -18,6 +18,7 @@ from playwright.sync_api import (
 
 from config import NAVIGATION_TIMEOUT_MS, WAIT_SECONDS
 from machine_master import UnitAssignment, normalize_model
+from storage_paths import raw_html_path
 
 
 class AccessLimitError(RuntimeError):
@@ -173,12 +174,18 @@ def save_html(
     target_date,
     html: str,
     raw_dir: Path,
+    model_id,
 ) -> Path:
-    # 複数店舗で台番号が重複しても衝突しないよう store_id を階層に含める。
-    output_dir = raw_dir / assignment.store_id / target_date.isoformat()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_path = output_dir / f"{assignment.unit}.html"
+    # store_id / model_id で分類し、ファイル名は実台コードにする。
+    # 日付フォルダは同一実台の日次HTMLが上書きされないように残す。
+    output_path = raw_html_path(
+        raw_dir,
+        assignment.store_id,
+        model_id,
+        target_date,
+        assignment.machine_id,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
 
     print(f"[SAVE] {output_path}")

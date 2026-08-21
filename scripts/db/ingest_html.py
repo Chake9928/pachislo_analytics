@@ -6,9 +6,9 @@ data/raw 配下（または指定パス）のHTMLを html_parser で構造化し
 実行:
     python scripts/db/ingest_html.py
     python scripts/db/ingest_html.py --dry-run
-    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
-    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
-    python scripts/db/ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run --debug-json data/processed/3075_debug.json
+    python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12
+    python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12 --dry-run
+    python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12 --dry-run --debug-json data/processed/M0001_debug.json
 
 引数:
     path            HTMLファイルまたはrawディレクトリ。省略時 data/raw

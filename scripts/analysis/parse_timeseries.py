@@ -13,7 +13,6 @@ data/processed/slump_timeseries.csv を書き出す。Supabaseには投入しな
 import csv
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -25,7 +24,9 @@ from machine_master import (
     load_assignments,
     normalize_model,
     resolve_assignment,
+    resolve_assignment_by_machine_id,
 )
+from storage_paths import parse_raw_html_path
 
 
 OUTPUT_CSV = PROCESSED_DIR / "slump_timeseries.csv"
@@ -34,39 +35,32 @@ POINT_PATTERN = re.compile(
     r'\["(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})",\s*(-?\d+)\]'
 )
 STORE_ID_PATTERN = re.compile(r"daidata\.goraggio\.com/(\d+)/")
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def detect_store_id(html_path: Path, html: str):
     """
-    新形式: data/raw/{store_id}/{date}/{unit}.html
-    旧形式: data/raw/{date}/{unit}.html
+    新形式: data/raw/{store_id}/{model_id}/{date}/{machine_id}.html
+    旧形式: data/raw/{store_id}/{date}/{unit}.html
+    最旧形式: data/raw/{date}/{unit}.html
 
     旧形式はHTML内URLからstore_idを推定し、既存データも再利用できるようにする。
     """
-    parent = html_path.parent
-    grandparent = parent.parent
-
-    if DATE_PATTERN.match(parent.name) and grandparent.name.isdigit():
-        return grandparent.name
+    loc = parse_raw_html_path(html_path)
+    if loc.store_id:
+        return loc.store_id
 
     match = STORE_ID_PATTERN.search(html)
     return match.group(1) if match else None
 
 
 def parse_one_file(html_path: Path, master):
-    target_date_str = html_path.parent.name
-    if not DATE_PATTERN.match(target_date_str):
+    loc = parse_raw_html_path(html_path)
+    if loc.data_date is None:
         print(f"[SKIP] 日付フォルダではありません: {html_path}")
         return []
 
-    target_date = date.fromisoformat(target_date_str)
-
-    try:
-        unit = int(html_path.stem)
-    except ValueError:
-        print(f"[SKIP] 台番号として解釈できません: {html_path}")
-        return []
+    target_date = loc.data_date
+    target_date_str = target_date.isoformat()
 
     html = html_path.read_text(encoding="utf-8")
     store_id = detect_store_id(html_path, html)
@@ -74,13 +68,31 @@ def parse_one_file(html_path: Path, master):
         print(f"[WARN] store_idを特定できません: {html_path}")
         return []
 
-    assignment = resolve_assignment(master, store_id, unit, target_date)
-    if assignment is None:
-        print(
-            f"[WARN] 台マスタに該当なし: "
-            f"{target_date_str} store_id={store_id} unit={unit}"
+    if loc.machine_code:
+        assignment = resolve_assignment_by_machine_id(
+            master, loc.machine_code, target_date
         )
-        return []
+        if assignment is None:
+            print(
+                f"[WARN] 台マスタに該当なし: "
+                f"{target_date_str} machine_id={loc.machine_code}"
+            )
+            return []
+        unit = assignment.unit
+    else:
+        try:
+            unit = loc.unit if loc.unit is not None else int(html_path.stem)
+        except ValueError:
+            print(f"[SKIP] 台番号として解釈できません: {html_path}")
+            return []
+
+        assignment = resolve_assignment(master, store_id, unit, target_date)
+        if assignment is None:
+            print(
+                f"[WARN] 台マスタに該当なし: "
+                f"{target_date_str} store_id={store_id} unit={unit}"
+            )
+            return []
 
     soup = BeautifulSoup(html, "html.parser")
 

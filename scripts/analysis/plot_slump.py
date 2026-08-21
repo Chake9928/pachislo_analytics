@@ -2,6 +2,12 @@
 
 指定店舗・機種の差枚相当を日次/連続（日跨ぎ連結）で描画し、
 PNGと系列CSVを出力ディレクトリへ保存する。
+出力は店舗×機種を先、日付を後にする。
+    data/slump/{store_id}/{model_id}/01_daily_by_machine/{YYYY-MM-DD}/
+    data/slump/{store_id}/{model_id}/02_chained_by_machine/
+    data/slump/{store_id}/{model_id}/03_daily_average/
+    data/slump/{store_id}/{model_id}/04_chained_average/
+    data/slump/{store_id}/{model_id}/series/
 
 実行:
     python scripts/analysis/plot_slump.py
@@ -33,6 +39,13 @@ from slump_series import (
     average_series,
     chain_days,
     parse_timestamptz,
+)
+from storage_paths import (
+    slump_chained_average_dir,
+    slump_chained_machine_dir,
+    slump_daily_average_dir,
+    slump_daily_machine_dir,
+    slump_series_dir,
 )
 from supabase_client import create_supabase_client
 
@@ -72,13 +85,12 @@ def configure_matplotlib():
     return plt
 
 
-def ensure_dirs(root: Path):
+def ensure_dirs(root: Path, store_id, model_id):
     paths = {
-        "daily": root / "01_daily_by_machine",
-        "chained": root / "02_chained_by_machine",
-        "daily_avg": root / "03_daily_average",
-        "chained_avg": root / "04_chained_average",
-        "series": root / "series",
+        "chained": slump_chained_machine_dir(root, store_id, model_id),
+        "daily_avg": slump_daily_average_dir(root, store_id, model_id),
+        "chained_avg": slump_chained_average_dir(root, store_id, model_id),
+        "series": slump_series_dir(root, store_id, model_id),
     }
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
@@ -248,11 +260,13 @@ def write_csv(path: Path, headers, rows):
 
 def plot_all(out_dir: Path, source_store_id: int, model_name: str):
     plt = configure_matplotlib()
-    dirs = ensure_dirs(out_dir)
     db = create_supabase_client()
     store, model, machines, unit_by_machine, slump_rows = fetch_target(
         db, source_store_id, model_name
     )
+    fs_store_id = store["source_store_id"]
+    model_id = model["model_id"]
+    dirs = ensure_dirs(out_dir, fs_store_id, model_id)
     grouped, unit_by_day = group_samples(slump_rows)
     dates = sorted({date.fromisoformat(row["data_date"]) for row in slump_rows})
     if not dates:
@@ -269,7 +283,7 @@ def plot_all(out_dir: Path, source_store_id: int, model_name: str):
     ]
 
     print(f"[STORE] {store['store_name']} source_store_id={store['source_store_id']}", flush=True)
-    print(f"[MODEL] {model['source_model_name']}", flush=True)
+    print(f"[MODEL] {model['source_model_name']} model_id={model_id}", flush=True)
     print(f"[DATES] {dates[0].isoformat()} .. {dates[-1].isoformat()}", flush=True)
     print(f"[MACHINES] {len(machine_meta)}", flush=True)
     print(f"[POINTS] {len(slump_rows)}", flush=True)
@@ -284,7 +298,9 @@ def plot_all(out_dir: Path, source_store_id: int, model_name: str):
 
     for data_date in dates:
         overview_rows = []
-        day_dir = dirs["daily"] / data_date.isoformat()
+        day_dir = slump_daily_machine_dir(
+            out_dir, data_date, fs_store_id, model_id
+        )
         day_dir.mkdir(parents=True, exist_ok=True)
         finals = []
 

@@ -250,3 +250,18 @@ def resolve_assignment(assignments, store_id: str, unit: int, target_date: date,
             f"{target_date} source={source_system} store_id={store_id} unit={unit} に複数のマスタが該当します"
         )
     return matches[0]
+
+
+def resolve_assignment_by_machine_id(assignments, machine_id: str, target_date: date):
+    matches = [
+        a
+        for a in assignments
+        if a.machine_id == machine_id and a.is_active(target_date)
+    ]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ValueError(
+            f"{target_date} machine_id={machine_id} に複数のマスタが該当します"
+        )
+    return matches[0]
