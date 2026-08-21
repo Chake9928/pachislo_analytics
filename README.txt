@@ -82,6 +82,20 @@ valid_to         配置有効終了日。空欄=現在も有効
 
 同じCSVで再実行可能。既存マスタは更新し、配置履歴は既存期間を見つけて更新する。
 
+HTML収集
+--------
+省略時は unit_mapping.csv の対象日配置を全件取得する。
+店舗・機種で絞る場合はオプションを付ける。
+
+    python scripts/scraping/collect_oneday.py 2026-08-21
+    python scripts/scraping/collect_oneday.py 2026-08-21 --store-id 100928
+    python scripts/scraping/collect_oneday.py 2026-08-21 --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
+
+    python scripts/scraping/collect_7days.py
+    python scripts/scraping/collect_7days.py --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
+
+--model は unit_mapping.csv の機種名。全角半角・空白の揺れは無視する。
+
 HTML解析のローカル確認
 ----------------------
 rawディレクトリ構造が以下なら日付を自動判定する。

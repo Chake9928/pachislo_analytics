@@ -5,11 +5,16 @@ unit_mapping.csv の配置に従って取得する。保存先は collect_oneday
 
 実行:
     python scripts/scraping/collect_7days.py
+    python scripts/scraping/collect_7days.py --store-id 100928
+    python scripts/scraping/collect_7days.py --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
 
 オプション:
-    なし。対象期間は config.py の BASE_DATE、待機間隔は WAIT_SECONDS を参照。
+    --store-id  店舗ID。省略時はマスタの全店舗
+    --model     機種名（unit_mapping.csv の model）。省略時は全機種
+    対象期間は config.py の BASE_DATE、待機間隔は WAIT_SECONDS を参照。
 """
 
+import argparse
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -28,16 +33,29 @@ from config import (
 from collector_common import (
     AccessLimitError,
     ModelMismatchError,
+    add_target_filter_args,
     build_url,
     collect_assignment_html,
     save_html,
     wait_between_requests,
 )
-from machine_master import get_assignments_for_date, load_assignments
+from machine_master import (
+    filter_assignments,
+    get_assignments_for_date,
+    load_assignments,
+)
 from model_lookup import load_model_id_map, resolve_model_id
 
 
 DAYS = 7
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="当日を含む直近7日分の台データを収集する"
+    )
+    add_target_filter_args(parser)
+    return parser.parse_args()
 
 
 def build_target_dates():
@@ -49,7 +67,17 @@ def build_target_dates():
 
 
 def main():
-    master = load_assignments(UNIT_MAPPING_CSV)
+    args = parse_args()
+
+    try:
+        master = filter_assignments(
+            load_assignments(UNIT_MAPPING_CSV),
+            store_id=args.store_id,
+            model=args.model,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     model_ids = load_model_id_map()
     target_dates = build_target_dates()
 
@@ -58,12 +86,21 @@ def main():
         for target_date in target_dates
     }
     total = sum(len(rows) for rows in targets_by_date.values())
+    if total == 0:
+        raise SystemExit(
+            f"{target_dates[0].isoformat()} ～ {target_dates[-1].isoformat()} "
+            "に該当する配置がありません"
+        )
 
     print("[MODE] 当日を含む直近7日分取得")
     print(
         f"[RANGE] {target_dates[0].isoformat()} "
         f"～ {target_dates[-1].isoformat()}"
     )
+    if args.store_id:
+        print(f"[FILTER] store_id={args.store_id}")
+    if args.model:
+        print(f"[FILTER] model={args.model}")
     print(f"[TOTAL] {total}ページ")
 
     success = []

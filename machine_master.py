@@ -233,6 +233,42 @@ def get_assignments_for_date(assignments, target_date: date):
     )
 
 
+def filter_assignments(assignments, store_id=None, model=None):
+    """store_id / 機種名で配置を絞り込む。未指定の軸は全件対象。
+
+    機種名は normalize_model で比較する（全角半角・空白の揺れを無視）。
+    指定した軸に1件も該当しない場合は ValueError。
+    """
+    filtered = list(assignments)
+    store_id = str(store_id).strip() if store_id is not None else ""
+    model = str(model).strip() if model is not None else ""
+
+    if store_id:
+        by_store = [a for a in filtered if a.store_id == store_id]
+        if not by_store:
+            available = sorted({a.store_id for a in filtered})
+            raise ValueError(
+                f"store_id={store_id} に該当する配置がありません。"
+                f" 候補: {available or '(なし)'}"
+            )
+        filtered = by_store
+
+    if model:
+        model_key = normalize_model(model)
+        by_model = [
+            a for a in filtered if normalize_model(a.model) == model_key
+        ]
+        if not by_model:
+            available = sorted({a.model for a in filtered})
+            raise ValueError(
+                f"model={model!r} に該当する配置がありません。"
+                f" 候補: {available or '(なし)'}"
+            )
+        filtered = by_model
+
+    return filtered
+
+
 def resolve_assignment(assignments, store_id: str, unit: int, target_date: date, source_system="daidata"):
     matches = [
         a

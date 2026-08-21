@@ -2,9 +2,14 @@
 
 data/raw 配下（または指定パス）のHTMLを html_parser で構造化し、
 日次サマリ・大当たり・スランプ等をDBへ投入する。--dry-run では書き込まない。
+店舗・機種・日付の絞り込みは path でディレクトリを指定する。
 
 実行:
     python scripts/db/ingest_html.py
+    python scripts/db/ingest_html.py data/raw/100928
+    python scripts/db/ingest_html.py data/raw/100928/2
+    python scripts/db/ingest_html.py data/raw/100928/2/2026-08-15
+    python scripts/db/ingest_html.py data/raw/100928/2/2026-08-15/M0031.html
     python scripts/db/ingest_html.py --dry-run
     python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12
     python scripts/db/ingest_html.py C:/path/to/M0001.html --data-date 2026-08-12 --dry-run
@@ -12,6 +17,11 @@ data/raw 配下（または指定パス）のHTMLを html_parser で構造化し
 
 引数:
     path            HTMLファイルまたはrawディレクトリ。省略時 data/raw
+                    全件:            data/raw（省略時と同じ）
+                    店舗:            data/raw/{store_id}
+                    店舗 × 機種:    data/raw/{store_id}/{model_id}
+                    特定日:          data/raw/{store_id}/{model_id}/{YYYY-MM-DD}
+                    1ファイル:      data/raw/{store_id}/{model_id}/{YYYY-MM-DD}/{machine_id}.html
 
 オプション:
     --data-date     日付フォルダ外の単体HTMLを解析するときの対象日 YYYY-MM-DD

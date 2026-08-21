@@ -6,12 +6,15 @@ model_id は Supabase の models テーブルから解決する。
 
 実行:
     python scripts/scraping/collect_oneday.py YYYY-MM-DD
+    python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928
+    python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
 
 引数:
     date  取得対象日（YYYY-MM-DD）。必須。
 
 オプション:
-    なし。ヘッドレス等は config.py の HEADLESS / WAIT_SECONDS を参照。
+    --store-id  店舗ID。省略時はマスタの全店舗
+    --model     機種名（unit_mapping.csv の model）。省略時は全機種
 """
 
 import argparse
@@ -32,12 +35,17 @@ from config import (
 from collector_common import (
     AccessLimitError,
     ModelMismatchError,
+    add_target_filter_args,
     build_url,
     collect_assignment_html,
     save_html,
     wait_between_requests,
 )
-from machine_master import get_assignments_for_date, load_assignments
+from machine_master import (
+    filter_assignments,
+    get_assignments_for_date,
+    load_assignments,
+)
 from model_lookup import load_model_id_map, resolve_model_id
 
 
@@ -47,6 +55,7 @@ def parse_args():
         "date",
         help="取得対象日 YYYY-MM-DD",
     )
+    add_target_filter_args(parser)
     return parser.parse_args()
 
 
@@ -59,12 +68,29 @@ def main():
             f"日付の形式が不正です: {args.date}（YYYY-MM-DD で指定してください）"
         )
 
-    master = load_assignments(UNIT_MAPPING_CSV)
+    try:
+        master = filter_assignments(
+            load_assignments(UNIT_MAPPING_CSV),
+            store_id=args.store_id,
+            model=args.model,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     targets = get_assignments_for_date(master, target_date)
+    if not targets:
+        raise SystemExit(
+            f"{target_date.isoformat()} に該当する配置がありません"
+        )
+
     model_ids = load_model_id_map()
 
     print("[MODE] 指定日1日分取得")
     print(f"[DATE] {target_date.isoformat()}")
+    if args.store_id:
+        print(f"[FILTER] store_id={args.store_id}")
+    if args.model:
+        print(f"[FILTER] model={args.model}")
     print(f"[TARGETS] {len(targets)}台")
 
     success = []

@@ -6,7 +6,9 @@ scripts/scraping の収集スクリプトから import して使う。
 実行:
     単体では実行しない。収集は以下のいずれか。
         python scripts/scraping/collect_oneday.py YYYY-MM-DD
+        python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
         python scripts/scraping/collect_7days.py
+        python scripts/scraping/collect_7days.py --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
 """
 
 from pathlib import Path
@@ -196,3 +198,14 @@ def save_html(
 
 def wait_between_requests() -> None:
     sleep(WAIT_SECONDS)
+
+
+def add_target_filter_args(parser) -> None:
+    parser.add_argument(
+        "--store-id",
+        help="取得対象の店舗ID。省略時はマスタの全店舗",
+    )
+    parser.add_argument(
+        "--model",
+        help="取得対象の機種名（unit_mapping.csv の model）。省略時は全機種",
+    )
