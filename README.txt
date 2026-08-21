@@ -18,6 +18,7 @@ supabase_client.py        Supabaseクライアント生成
 supabase_writer.py        各テーブルへの INSERT / UPSERT
 slump_series.py           スランプ時系列の連結・平均化
 setting_detect.py         機種別の設定判別カウント
+setting_summary.py        設定判別CSVからHTMLサマリ生成
 storage_paths.py          raw HTML / スランプ / 設定判別のパス規則
 model_lookup.py           models テーブルから model_id を解決
 scripts/scraping/collect_oneday.py   指定日1日分収集
@@ -29,6 +30,7 @@ scripts/db/reorganize_storage.py     既存raw/スランプを機種別パスへ
 scripts/analysis/parse_timeseries.py 従来のCSV時系列出力（ローカル確認用）
 scripts/analysis/plot_slump.py       slump_points からグラフ生成
 scripts/analysis/analyze_setting.py  設定判別カウント（店舗×機種CSV）
+scripts/analysis/summarize_setting.py 設定判別CSVからHTMLサマリ生成
 master/unit_mapping.csv   唯一のローカル台マスタ
 db/pachislo_supabase_schema.sql  Supabase/PostgreSQL DDL
 .env.example              環境変数サンプル
@@ -113,9 +115,11 @@ rawディレクトリ構造が以下なら日付を自動判定する。
     data/setting/{store_id}/{model_id}/store_daily.csv
     data/setting/{store_id}/{model_id}/store_total.csv
     data/setting/{store_id}/{model_id}/pseudo_bonus_events.csv
+    data/setting/{store_id}/{model_id}/summary.html
 
     python scripts/analysis/analyze_setting.py
     python scripts/analysis/analyze_setting.py --store-id 100928 --model-id 1
+    python scripts/analysis/summarize_setting.py data/setting/100928/1
 
 スランプ出力も同じ店舗×機種先行:
 

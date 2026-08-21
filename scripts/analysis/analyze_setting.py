@@ -10,12 +10,14 @@
     data/setting/{store_id}/{model_id}/store_daily.csv
     data/setting/{store_id}/{model_id}/store_total.csv
     data/setting/{store_id}/{model_id}/pseudo_bonus_events.csv
+    data/setting/{store_id}/{model_id}/summary.html
 
 実行:
     python scripts/analysis/analyze_setting.py
     python scripts/analysis/analyze_setting.py --store-id 100928 --model-id 1
     python scripts/analysis/analyze_setting.py --store-id 100928 --model "L ToLOVEるﾀﾞｰｸﾈｽver.8.7"
     python scripts/analysis/analyze_setting.py --raw data/raw --out data/setting
+    python scripts/analysis/summarize_setting.py data/setting/100928/1
 
 オプション:
     --store-id  店舗ID。省略時は raw 配下の全店舗
@@ -43,6 +45,7 @@ from setting_detect import (
     get_spec,
     resolve_known_model_id,
 )
+from setting_summary import write_setting_summary
 from storage_paths import parse_raw_html_path, setting_store_model_dir
 
 
@@ -363,6 +366,8 @@ def main():
             EVENT_FIELDS,
             tables["pseudo_bonus_events"],
         )
+        html_path = write_setting_summary(out_dir)
+        print(f"[SAVE] {html_path}")
 
 
 if __name__ == "__main__":
