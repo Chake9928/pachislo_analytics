@@ -1,3 +1,12 @@
+"""unit_mapping.csv の読込・整合性チェック・日付に対する配置解決。
+
+台番号ではなく machine_id を実台の不変IDとして扱い、
+valid_from / valid_to で対象日の配置を解決する。
+
+実行:
+    単体では実行しない。検証は python validate_master.py
+"""
+
 import csv
 import re
 import unicodedata

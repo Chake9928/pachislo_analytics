@@ -1,3 +1,13 @@
+"""slump_series のユニットテスト（日跨ぎ連結と時刻バケット平均）。
+
+実行:
+    python -m unittest tests.test_slump_series
+    python -m unittest tests.test_slump_series -v
+
+オプション:
+    -v  各テスト名を表示する（unittest 標準）
+"""
+
 import unittest
 from datetime import date, datetime
 

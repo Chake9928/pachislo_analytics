@@ -1,3 +1,12 @@
+"""解析済みページを Supabase 各テーブルへ INSERT / UPSERT する。
+
+source_pages / machine_daily_summaries / jackpot_events / slump_points 等へ
+冪等に書き込む。ingest_html.py から利用する。単体では実行しない。
+
+実行:
+    なし（ライブラリ）。投入は python ingest_html.py
+"""
+
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean

@@ -1,3 +1,15 @@
+"""raw HTMLから対象日のスランプ時系列をCSVへ出力する（ローカル確認用）。
+
+data/raw 配下を走査し、machine_id + 日付 + 時刻で重複排除したうえで
+data/processed/slump_timeseries.csv を書き出す。Supabaseには投入しない。
+
+実行:
+    python parse_timeseries.py
+
+オプション:
+    なし。入力は config.py の RAW_DIR、出力は PROCESSED_DIR を参照。
+"""
+
 import csv
 import re
 from datetime import date

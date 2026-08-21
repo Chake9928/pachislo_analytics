@@ -1,3 +1,24 @@
+"""保存済みHTMLを解析し、Supabaseへ INSERT / UPSERT する。
+
+data/raw 配下（または指定パス）のHTMLを html_parser で構造化し、
+日次サマリ・大当たり・スランプ等をDBへ投入する。--dry-run では書き込まない。
+
+実行:
+    python ingest_html.py
+    python ingest_html.py --dry-run
+    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12
+    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run
+    python ingest_html.py C:/path/to/3075.html --data-date 2026-08-12 --dry-run --debug-json data/processed/3075_debug.json
+
+引数:
+    path            HTMLファイルまたはrawディレクトリ。省略時 data/raw
+
+オプション:
+    --data-date     日付フォルダ外の単体HTMLを解析するときの対象日 YYYY-MM-DD
+    --dry-run       DBへ書き込まず解析結果だけ表示する
+    --debug-json    dry-run時に解析結果JSONを保存するパス（単体HTML向け）
+"""
+
 import argparse
 import json
 from datetime import date, datetime, timezone

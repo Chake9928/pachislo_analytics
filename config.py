@@ -1,3 +1,12 @@
+"""プロジェクト共通設定と環境変数の読み込み。
+
+BASE_DATE・パス・Playwright待機・Supabase接続情報を定義する。
+他スクリプトから import して使う。単体では実行しない。
+
+実行:
+    なし（ライブラリ）。.env の SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY を読む。
+"""
+
 import os
 from datetime import date, datetime
 from pathlib import Path

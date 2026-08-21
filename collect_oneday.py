@@ -1,3 +1,18 @@
+"""指定日1日分の台詳細HTMLを収集する。
+
+unit_mapping.csv の対象日配置に基づき、Playwrightで台データサイトから
+HTMLを取得し data/raw/{store_id}/{YYYY-MM-DD}/{unit}.html に保存する。
+
+実行:
+    python collect_oneday.py YYYY-MM-DD
+
+引数:
+    date  取得対象日（YYYY-MM-DD）。必須。
+
+オプション:
+    なし。ヘッドレス等は config.py の HEADLESS / WAIT_SECONDS を参照。
+"""
+
 import argparse
 from datetime import date
 

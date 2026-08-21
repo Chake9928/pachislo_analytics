@@ -1,3 +1,19 @@
+"""Supabase の slump_points から台別・平均のスランプグラフを生成する。
+
+指定店舗・機種の差枚相当を日次/連続（日跨ぎ連結）で描画し、
+PNGと系列CSVを出力ディレクトリへ保存する。
+
+実行:
+    python plot_slump.py
+    python plot_slump.py --source-store-id 100928 --model "L ToLOVEるﾀﾞｰｸﾈｽver.8.7"
+    python plot_slump.py --out data/slump
+
+オプション:
+    --source-store-id  取得元店舗ID。省略時 100928
+    --model            取得元機種名。省略時 ToLOVEるダークネス
+    --out              出力先ディレクトリ。省略時 data/slump
+"""
+
 from __future__ import annotations
 
 import argparse

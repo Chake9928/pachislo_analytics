@@ -1,3 +1,16 @@
+"""unit_mapping.csv を Supabase のマスタテーブルへ同期する。
+
+stores / models / machines / machine_placements を INSERT または更新する。
+同じCSVで再実行可能。実台の model_id 付け替えは自動では行わない。
+
+実行:
+    python init_master.py --dry-run
+    python init_master.py
+
+オプション:
+    --dry-run  DBを更新せず、同期内容だけ表示する
+"""
+
 import argparse
 from collections import OrderedDict
 from datetime import date

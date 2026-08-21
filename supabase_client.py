@@ -1,3 +1,12 @@
+"""Supabase クライアントの生成。
+
+.env の URL と service role キーを使い、社内SSL検査CAも信頼する
+httpx クライアント付きで接続する。単体では実行しない。
+
+実行:
+    なし（ライブラリ）。接続確認を兼ねる処理は init_master.py / ingest_html.py。
+"""
+
 import os
 import ssl
 
