@@ -12,6 +12,7 @@ from pathlib import Path
 from storage_paths import (
     parse_raw_html_path,
     raw_html_path,
+    setting_store_model_dir,
     slump_chained_machine_dir,
     slump_daily_average_dir,
     slump_daily_machine_dir,
@@ -82,6 +83,15 @@ class SlumpPathTest(unittest.TestCase):
         self.assertEqual(
             slump_series_dir(root, "100928", 1),
             root / "100928" / "1" / "series",
+        )
+
+
+class SettingPathTest(unittest.TestCase):
+    def test_store_model_dir(self):
+        root = Path("data/setting")
+        self.assertEqual(
+            setting_store_model_dir(root, "100928", 1),
+            root / "100928" / "1",
         )
 
 

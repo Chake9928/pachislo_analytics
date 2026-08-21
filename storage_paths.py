@@ -1,4 +1,4 @@
-"""raw HTML とスランプ出力のパス規則。
+"""raw HTML / スランプ / 設定判別出力のパス規則。
 
 raw:
     data/raw/{store_id}/{model_id}/{YYYY-MM-DD}/{machine_id}.html
@@ -12,6 +12,9 @@ raw:
     data/slump/{store_id}/{model_id}/03_daily_average/
     data/slump/{store_id}/{model_id}/04_chained_average/
     data/slump/{store_id}/{model_id}/series/
+
+設定判別:
+    data/setting/{store_id}/{model_id}/
 
 実行:
     なし（ライブラリ）。
@@ -120,3 +123,7 @@ def slump_chained_average_dir(root: Path, store_id, model_id) -> Path:
 
 def slump_series_dir(root: Path, store_id, model_id) -> Path:
     return slump_store_model_dir(root, store_id, model_id) / "series"
+
+
+def setting_store_model_dir(root: Path, store_id, model_id) -> Path:
+    return Path(root) / str(store_id) / str(model_id)

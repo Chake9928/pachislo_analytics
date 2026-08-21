@@ -32,6 +32,7 @@ PROFILE_DIR = Path("./browser_profile").resolve()
 RAW_DIR = Path("./data/raw")
 PROCESSED_DIR = Path("./data/processed")
 SLUMP_DIR = Path("./data/slump")
+SETTING_DIR = Path("./data/setting")
 
 HEADLESS = True
 WAIT_SECONDS = 2.0
