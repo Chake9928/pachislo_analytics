@@ -233,8 +233,16 @@ def get_assignments_for_date(assignments, target_date: date):
     )
 
 
-def filter_assignments(assignments, store_id=None, model=None):
-    """store_id / 機種名で配置を絞り込む。未指定の軸は全件対象。
+def _normalize_machine_ids(machine_ids):
+    if machine_ids is None:
+        return []
+    if isinstance(machine_ids, str):
+        machine_ids = [machine_ids]
+    return [str(mid).strip() for mid in machine_ids if str(mid).strip()]
+
+
+def filter_assignments(assignments, store_id=None, model=None, machine_ids=None):
+    """store_id / 機種名 / machine_id で配置を絞り込む。未指定の軸は全件対象。
 
     機種名は normalize_model で比較する（全角半角・空白の揺れを無視）。
     指定した軸に1件も該当しない場合は ValueError。
@@ -242,6 +250,7 @@ def filter_assignments(assignments, store_id=None, model=None):
     filtered = list(assignments)
     store_id = str(store_id).strip() if store_id is not None else ""
     model = str(model).strip() if model is not None else ""
+    machine_ids = _normalize_machine_ids(machine_ids)
 
     if store_id:
         by_store = [a for a in filtered if a.store_id == store_id]
@@ -265,6 +274,22 @@ def filter_assignments(assignments, store_id=None, model=None):
                 f" 候補: {available or '(なし)'}"
             )
         filtered = by_model
+
+    if machine_ids:
+        wanted = set(machine_ids)
+        by_machine = [a for a in filtered if a.machine_id in wanted]
+        if not by_machine:
+            available = sorted({a.machine_id for a in filtered})
+            raise ValueError(
+                f"machine_id={sorted(wanted)} に該当する配置がありません。"
+                f" 候補: {available or '(なし)'}"
+            )
+        missing = wanted - {a.machine_id for a in by_machine}
+        if missing:
+            raise ValueError(
+                f"machine_id={sorted(missing)} に該当する配置がありません"
+            )
+        filtered = by_machine
 
     return filtered
 

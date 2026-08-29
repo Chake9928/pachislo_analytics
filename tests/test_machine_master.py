@@ -94,6 +94,18 @@ class FilterAssignmentsTest(unittest.TestCase):
         self.assertIn("model=", str(ctx.exception))
         self.assertIn("L ﾏｷﾞｱﾚｺｰﾄﾞ", str(ctx.exception))
 
+    def test_machine_ids(self):
+        filtered = filter_assignments(
+            MASTER,
+            machine_ids=["M0002", "M0061"],
+        )
+        self.assertEqual([a.machine_id for a in filtered], ["M0002", "M0061"])
+
+    def test_unknown_machine_id_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            filter_assignments(MASTER, machine_ids=["M9999"])
+        self.assertIn("machine_id=", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

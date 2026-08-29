@@ -1,0 +1,10 @@
+# Supabase Dashboard > Project Settings / API から取得
+SUPABASE_URL=https://dohobpljtcvpmoqosmdn.supabase.co
+
+# 収集・取込スクリプトを実行するバックエンド専用キー。
+# Gitへコミットしない / Webブラウザへ渡さない。
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvaG9icGxqdGN2cG1vcW9zbWRuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzAyMjM4NywiZXhwIjoyMTAyNTk4Mzg3fQ.pjHbNScB7INpS_LlhcF-SCeLLD_r1VHyaPhQ_TjKBVQ
+
+SOURCE_SYSTEM=daidata
+PARSER_VERSION=v3.0.0
+COLLECTOR_VERSION=v3.0.0

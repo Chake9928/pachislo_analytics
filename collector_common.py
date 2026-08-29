@@ -209,3 +209,9 @@ def add_target_filter_args(parser) -> None:
         "--model",
         help="取得対象の機種名（unit_mapping.csv の model）。省略時は全機種",
     )
+    parser.add_argument(
+        "--machine-id",
+        action="append",
+        dest="machine_ids",
+        help="取得対象の machine_id。複数指定可。省略時は全台",
+    )

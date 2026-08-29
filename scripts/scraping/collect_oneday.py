@@ -8,13 +8,15 @@ model_id は Supabase の models テーブルから解決する。
     python scripts/scraping/collect_oneday.py YYYY-MM-DD
     python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928
     python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928 --model "L ﾏｷﾞｱﾚｺｰﾄﾞ"
+    python scripts/scraping/collect_oneday.py YYYY-MM-DD --store-id 100928 --machine-id M0043 --machine-id M0002
 
 引数:
     date  取得対象日（YYYY-MM-DD）。必須。
 
 オプション:
-    --store-id  店舗ID。省略時はマスタの全店舗
-    --model     機種名（unit_mapping.csv の model）。省略時は全機種
+    --store-id    店舗ID。省略時はマスタの全店舗
+    --model       機種名（unit_mapping.csv の model）。省略時は全機種
+    --machine-id  machine_id。複数指定可。省略時は全台
 """
 
 import argparse
@@ -73,6 +75,7 @@ def main():
             load_assignments(UNIT_MAPPING_CSV),
             store_id=args.store_id,
             model=args.model,
+            machine_ids=args.machine_ids,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
@@ -91,6 +94,8 @@ def main():
         print(f"[FILTER] store_id={args.store_id}")
     if args.model:
         print(f"[FILTER] model={args.model}")
+    if args.machine_ids:
+        print(f"[FILTER] machine_id={','.join(args.machine_ids)}")
     print(f"[TARGETS] {len(targets)}台")
 
     success = []

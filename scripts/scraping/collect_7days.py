@@ -74,6 +74,7 @@ def main():
             load_assignments(UNIT_MAPPING_CSV),
             store_id=args.store_id,
             model=args.model,
+            machine_ids=args.machine_ids,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
@@ -101,6 +102,8 @@ def main():
         print(f"[FILTER] store_id={args.store_id}")
     if args.model:
         print(f"[FILTER] model={args.model}")
+    if args.machine_ids:
+        print(f"[FILTER] machine_id={','.join(args.machine_ids)}")
     print(f"[TOTAL] {total}ページ")
 
     success = []
