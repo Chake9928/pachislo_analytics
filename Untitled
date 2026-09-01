@@ -1,10 +1,636 @@
-# Supabase Dashboard > Project Settings / API から取得
-SUPABASE_URL=https://dohobpljtcvpmoqosmdn.supabase.co
+tmp_target_0901.py
+----------------------------------
+import json
+from pathlib import Path
 
-# 収集・取込スクリプトを実行するバックエンド専用キー。
-# Gitへコミットしない / Webブラウザへ渡さない。
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvaG9icGxqdGN2cG1vcW9zbWRuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzAyMjM4NywiZXhwIjoyMTAyNTk4Mzg3fQ.pjHbNScB7INpS_LlhcF-SCeLLD_r1VHyaPhQ_TjKBVQ
+d = json.loads(Path("data/setting/100928/1/_tmp_target_0901.json").read_text(encoding="utf-8"))
+print("TODAY", d["today"])
+print("complete", d["complete_dates"])
+print("last3", d["last3_dates"])
+print("last7", d["last7_dates"])
+print("med_hist", d["med_hist"], "med_l3", d["med_l3"])
+print("ISLAND_TODAY", json.dumps(d["island_today"], ensure_ascii=False))
+print("---STORE DAILY---")
+for x in d["store_daily"]:
+    print(x)
+print("---ISLAND FINAL SLUMP---")
+for x in d["island_final"]:
+    print(x)
+print("---RANK---")
+for i, r in enumerate(d["rows"], 1):
+    print(
+        f"{i:2} {r['machine_id']} u{r['unit']} score={r['score']} "
+        f"hist_idx={r['hist']['high_index']} spec={r['hist']['zone_special']} "
+        f"late={r['hist']['late_zone']} l3idx={r['last3']['high_index']} "
+        f"l3s={r['last3']['zone_special']} today_s={r['today']['zone_special']} "
+        f"tcold={r['today']['over_3time_single']} slump={r['slump'].get('last')} "
+        f"shape={r['slump'].get('shape')} games={r['html'].get('total_start')} "
+        f"cur={r['html'].get('current_start')} wd={r['week_delta']} tags={r['tags']}"
+    )
+print("---TOP DETAIL---")
+for r in d["rows"][:10]:
+    print("=" * 60)
+    print(r["machine_id"], r["unit"], "score", r["score"])
+    print("reasons:", r["reasons"])
+    print("risks:", r["risks"])
+    print("hist", {k: r["hist"][k] for k in ["zone_special", "zone_150g", "zone_450g", "zone_650g", "late_zone", "over_3time_single", "high_index", "late_ratio"]})
+    print("last3", {k: r["last3"][k] for k in ["zone_special", "zone_150g", "zone_450g", "zone_650g", "late_zone", "over_3time_single", "high_index"]})
+    print("weeks", r["weeks"])
+    print("today", {k: r["today"][k] for k in ["zone_special", "zone_150g", "zone_450g", "zone_650g", "late_zone", "over_3time_single"]})
+    print("html keys", {k: r["html"].get(k) for k in ["bb", "art", "total_start", "current_start", "max_hold", "updated", "pseudo_n", "last_event"]})
+    print("pseudos", r["html"].get("pseudos"))
+    print("slump", r["slump"])
+    print("zone", r["zone"])
+    print("recent_slump", r["recent_slump"], "avg_final", r["avg_final"], "chained", r["chained_last"])
+ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
-SOURCE_SYSTEM=daidata
-PARSER_VERSION=v3.0.0
-COLLECTOR_VERSION=v3.0.0
+
+_tmp_target_0901
+"""One-off: 2026-09-01 ToLOVEる狙い台分析。結果を JSON で stdout へ出す。"""
+from __future__ import annotations
+
+import csv
+import json
+import sys
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from statistics import median
+from zoneinfo import ZoneInfo
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from config import RAW_DIR, UNIT_MAPPING_CSV
+from html_parser import parse_html_file
+from machine_master import load_assignments
+from setting_detect import COUNT_KEYS, get_spec
+from setting_summary import load_setting_dir
+
+JST = ZoneInfo("Asia/Tokyo")
+TODAY = date(2026, 9, 1)
+SETTING_DIR = Path("data/setting/100928/1")
+SLUMP_DAILY = Path("data/slump/100928/1/series/daily.csv")
+SLUMP_CHAINED = Path("data/slump/100928/1/series/chained.csv")
+SLUMP_FINAL = Path("data/slump/100928/1/series/daily_final_mean.csv")
+RAW_TODAY = Path("data/raw/100928/1/2026-09-01")
+
+WEEK_WINDOWS = {
+    "w_0817": (date(2026, 8, 17), date(2026, 8, 23)),  # Mon-Sun
+    "w_0824": (date(2026, 8, 24), date(2026, 8, 30)),
+    "w_0831": (date(2026, 8, 31), date(2026, 9, 6)),  # current week
+}
+
+
+def high_index(c):
+    late = c["over_zone_650g"] + c["zone_1000g"]
+    return 2 * c["zone_special"] + c["zone_650g"] - late
+
+
+def empty():
+    return {k: 0 for k in COUNT_KEYS}
+
+
+def add(a, b):
+    return {k: a[k] + b[k] for k in COUNT_KEYS}
+
+
+def pack(c):
+    late = c["over_zone_650g"] + c["zone_1000g"]
+    denom = c["zone_650g"] + late
+    return {
+        **c,
+        "late_zone": late,
+        "late_ratio": (late / denom) if denom else None,
+        "high_index": high_index(c),
+        "pseudo_zones": c["zone_150g"] + c["zone_250g"] + c["zone_450g"]
+        + c["zone_650g"] + c["over_zone_650g"] + c["zone_1000g"],
+    }
+
+
+def in_window(d, start, end):
+    return start <= d <= end
+
+
+def nearest_zone(start_count):
+    if start_count is None:
+        return None
+    bands = [
+        (150, 181, 189, "150G帯"),
+        (250, 281, 289, "250G帯"),
+        (450, 481, 489, "450G帯"),
+        (650, 681, 689, "650G帯"),
+        (1000, 1001, 1200, "天井帯"),
+    ]
+    for name_g, lo, hi, label in bands:
+        if lo <= start_count <= hi:
+            return {"label": label, "status": "in_zone", "g": name_g, "start": start_count}
+        if start_count < lo:
+            return {
+                "label": label,
+                "status": "approaching",
+                "g": name_g,
+                "start": start_count,
+                "remain": lo - start_count,
+            }
+    if start_count > 1000:
+        return {"label": "天井超え", "status": "over_ceiling", "g": 1000, "start": start_count}
+    return {"label": "ゾーン外", "status": "outside", "g": None, "start": start_count}
+
+
+def slump_shape(points):
+    """points: list of (dt, value) sorted."""
+    if not points:
+        return {}
+    ys = [p[1] for p in points]
+    xs = [p[0] for p in points]
+    last = ys[-1]
+    mn = min(ys)
+    mx = max(ys)
+    first = ys[0]
+    # last 45 min slope if possible
+    cutoff = xs[-1] - timedelta(minutes=45)
+    recent = [(t, v) for t, v in points if t >= cutoff]
+    slope = None
+    if len(recent) >= 2:
+        dt_h = (recent[-1][0] - recent[0][0]).total_seconds() / 3600
+        if dt_h > 0:
+            slope = (recent[-1][1] - recent[0][1]) / dt_h
+    recovered = last - mn
+    drawdown = last - mx
+    # classify
+    if last <= -1500 and recovered < 400:
+        shape = "深いマイナス停滞"
+    elif last <= -800 and slope is not None and slope > 400:
+        shape = "マイナスから回復中"
+    elif last <= -500:
+        shape = "マイナス推移"
+    elif last >= 2000:
+        shape = "大きくプラス済み"
+    elif last >= 800 and slope is not None and slope > 300:
+        shape = "上昇継続"
+    elif last >= 500:
+        shape = "プラス推移"
+    elif slope is not None and slope > 500:
+        shape = "直近上昇"
+    elif slope is not None and slope < -500:
+        shape = "直近下降"
+    else:
+        shape = "横ばい〜小動き"
+    return {
+        "last": last,
+        "min": mn,
+        "max": mx,
+        "first": first,
+        "recovered_from_min": recovered,
+        "drawdown_from_max": drawdown,
+        "recent_slope_per_h": None if slope is None else round(slope),
+        "shape": shape,
+        "n_points": len(points),
+        "first_at": xs[0].isoformat(),
+        "last_at": xs[-1].isoformat(),
+    }
+
+
+def main():
+    data = load_setting_dir(SETTING_DIR)
+    machines_meta = {m["machine_id"]: m for m in data["machines"]}
+    daily_by = defaultdict(dict)
+    for row in data["daily"]:
+        daily_by[row["machine_id"]][row["data_date"]] = row
+
+    dates = sorted(d["data_date"] for d in data["store_daily"])
+    complete_dates = [d for d in dates if d != TODAY.isoformat()]
+
+    # week aggregates per machine
+    week_counts = defaultdict(lambda: defaultdict(empty))
+    last3_dates = complete_dates[-3:]
+    last7_dates = complete_dates[-7:]
+    last3 = defaultdict(empty)
+    last7 = defaultdict(empty)
+    hist = defaultdict(empty)  # complete days only
+
+    for mid, days in daily_by.items():
+        for ds, row in days.items():
+            d = date.fromisoformat(ds)
+            c = {k: row[k] for k in COUNT_KEYS}
+            if d != TODAY:
+                hist[mid] = add(hist[mid], c)
+            if ds in last3_dates:
+                last3[mid] = add(last3[mid], c)
+            if ds in last7_dates:
+                last7[mid] = add(last7[mid], c)
+            for wname, (ws, we) in WEEK_WINDOWS.items():
+                if in_window(d, ws, we):
+                    week_counts[mid][wname] = add(week_counts[mid][wname], c)
+
+    # slump daily last values
+    slump_last = defaultdict(dict)  # mid -> date -> last value
+    slump_today_series = defaultdict(list)
+    with SLUMP_DAILY.open(encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            mid = row["machine_code"]
+            d = row["data_date"]
+            ts = datetime.fromisoformat(row["sampled_at_jst"])
+            val = int(row["slump_value"])
+            slump_last[mid][d] = val
+            if d == TODAY.isoformat():
+                slump_today_series[mid].append((ts, val))
+
+    chained_last = {}
+    with SLUMP_CHAINED.open(encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            chained_last[row["machine_code"]] = int(row["chained_slump_value"])
+
+    island_final = []
+    with SLUMP_FINAL.open(encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            island_final.append(row)
+
+    # parse today HTML
+    master = load_assignments(UNIT_MAPPING_CSV)
+    spec = get_spec(1)
+    today_html = {}
+    source_updated = None
+    for path in sorted(RAW_TODAY.glob("M*.html")):
+        page = parse_html_file(path, master)
+        s = page.primary_summary
+        result = spec.analyze_events(page.jackpot_events)
+        today_points = [
+            (p.sampled_at, p.slump_value)
+            for p in page.slump_points
+            if p.data_date == TODAY
+        ]
+        today_points.sort(key=lambda x: x[0])
+        if page.source_updated_at:
+            source_updated = page.source_updated_at
+        last_jp = None
+        if page.jackpot_events:
+            ev = page.jackpot_events[-1]
+            last_jp = {
+                "type": ev.event_type,
+                "start": ev.start_count,
+                "time": ev.event_time.isoformat() if ev.event_time else None,
+            }
+        today_html[page.machine_code] = {
+            "unit": page.unit_number,
+            "bb": s.bb_count,
+            "art": s.art_count,
+            "total_start": s.total_start,
+            "current_start": s.current_start,
+            "max_hold": s.max_hold,
+            "updated": page.source_updated_at.isoformat() if page.source_updated_at else None,
+            "counts": result.as_dict(),
+            "pseudo_n": len(result.pseudo_bonuses),
+            "pseudos": [
+                {"start": b.start_count, "zone": b.zone}
+                for b in result.pseudo_bonuses
+            ],
+            "last_event": last_jp,
+            "slump_from_html": slump_shape(today_points) if today_points else {},
+            "n_events": len(page.jackpot_events),
+        }
+
+    # score
+    hist_indices = [pack(hist[m])["high_index"] for m in hist]
+    med_hist = median(hist_indices) if hist_indices else 0
+    last3_indices = [pack(last3[m])["high_index"] for m in last3]
+    med_l3 = median(last3_indices) if last3_indices else 0
+
+    rows = []
+    for mid in sorted(machines_meta):
+        meta = machines_meta[mid]
+        unit = meta["unit_number"]
+        h = pack(hist[mid])
+        l3 = pack(last3[mid])
+        l7 = pack(last7[mid])
+        weeks = {w: pack(week_counts[mid][w]) for w in WEEK_WINDOWS}
+        today_s = daily_by[mid].get(TODAY.isoformat(), empty())
+        tpack = pack({k: today_s[k] if isinstance(today_s, dict) and k in today_s else today_s.get(k, 0) if hasattr(today_s, "get") else 0 for k in COUNT_KEYS})
+        # daily_by row has extra keys
+        if TODAY.isoformat() in daily_by[mid]:
+            tpack = pack({k: daily_by[mid][TODAY.isoformat()][k] for k in COUNT_KEYS})
+
+        html = today_html.get(mid, {})
+        slump = slump_shape(slump_today_series.get(mid, []))
+        if not slump and html.get("slump_from_html"):
+            slump = html["slump_from_html"]
+
+        # recent 3 complete-day slump finals
+        recent_slump = []
+        for ds in last3_dates:
+            if ds in slump_last[mid]:
+                recent_slump.append({"date": ds, "final": slump_last[mid][ds]})
+        hist_slump_vals = [slump_last[mid][d] for d in complete_dates if d in slump_last[mid]]
+        plus_days = sum(1 for v in hist_slump_vals if v > 0)
+        minus_days = sum(1 for v in hist_slump_vals if v < 0)
+        avg_final = round(sum(hist_slump_vals) / len(hist_slump_vals)) if hist_slump_vals else None
+        last3_avg_slump = (
+            round(sum(x["final"] for x in recent_slump) / len(recent_slump))
+            if recent_slump else None
+        )
+
+        zone = nearest_zone(html.get("current_start"))
+
+        # week delta: current week vs previous week (8/24)
+        prev_w = weeks["w_0824"]["high_index"]
+        cur_w = weeks["w_0831"]["high_index"]
+        week_delta = cur_w - prev_w
+
+        # ---- scoring (狙い台) ----
+        score = 0.0
+        reasons = []
+        risks = []
+
+        # historical setting
+        if h["high_index"] >= med_hist + 6:
+            score += 18
+            reasons.append(f"期間指数が高い（{h['high_index']}、中央値{med_hist:.0f}）")
+        elif h["high_index"] >= med_hist + 2:
+            score += 10
+            reasons.append(f"期間指数がやや高い（{h['high_index']}）")
+        elif h["high_index"] <= med_hist - 6:
+            score -= 10
+            risks.append(f"期間指数が低い（{h['high_index']}）")
+
+        if h["zone_special"] >= 9:
+            score += 12
+            reasons.append(f"高設定帯（150/450）が期間{h['zone_special']}回")
+        elif h["zone_special"] >= 7:
+            score += 6
+            reasons.append(f"高設定帯が期間{h['zone_special']}回")
+
+        if h["zone_450g"] >= 3:
+            score += 8
+            reasons.append(f"450G帯が期間{h['zone_450g']}回（稀少）")
+
+        late_ratio = h["late_ratio"]
+        if late_ratio is not None:
+            if late_ratio <= 0.50 and h["zone_650g"] >= 12:
+                score += 8
+                reasons.append(f"650帯が相対的に多い（後半比{late_ratio:.0%}）")
+            elif late_ratio >= 0.70:
+                score -= 8
+                risks.append(f"天井・650超えが多い（後半比{late_ratio:.0%}）")
+
+        # last 3 complete days (8/29-31)
+        if l3["high_index"] >= med_l3 + 4:
+            score += 14
+            reasons.append(f"直近3日の指数が高い（{l3['high_index']}）")
+        elif l3["high_index"] <= med_l3 - 4:
+            score -= 6
+            risks.append(f"直近3日の指数が弱い（{l3['high_index']}）")
+
+        if l3["zone_special"] >= 3:
+            score += 8
+            reasons.append(f"直近3日で高設定帯{l3['zone_special']}回")
+
+        # current week vs previous
+        if week_delta >= 6 and cur_w >= 2:
+            score += 10
+            reasons.append(f"今週指数が前週から改善（{prev_w}→{cur_w}）")
+        elif week_delta <= -8:
+            score -= 8
+            risks.append(f"今週指数が前週から悪化（{prev_w}→{cur_w}）")
+
+        # today setting
+        if tpack["over_3time_single"] >= 1:
+            score -= 16
+            risks.append("当日3連単あり（冷遇の可能性）")
+        if tpack["zone_special"] >= 1:
+            score += 14
+            reasons.append(
+                f"当日すでに高設定帯{tpack['zone_special']}回"
+                f"（150={tpack['zone_150g']}/450={tpack['zone_450g']}）"
+            )
+        if tpack["zone_650g"] >= 1 and tpack["late_zone"] == 0:
+            score += 6
+            reasons.append("当日650帯ヒット・天井なし")
+        if tpack["zone_1000g"] >= 1:
+            score -= 4
+            risks.append("当日天井到達")
+
+        # today slump / remaining value
+        last_slump = slump.get("last")
+        shape = slump.get("shape", "")
+        if last_slump is not None:
+            if last_slump <= -1200:
+                score += 12
+                reasons.append(f"当日差枚が深いマイナス（{last_slump}枚）で出玉余地")
+            elif last_slump <= -400:
+                score += 7
+                reasons.append(f"当日差枚マイナス（{last_slump}枚）")
+            elif last_slump >= 2500:
+                score -= 14
+                risks.append(f"当日すでに大きくプラス（{last_slump}枚）")
+            elif last_slump >= 1200:
+                score -= 7
+                risks.append(f"当日プラスが進んでいる（{last_slump}枚）")
+
+        if shape in ("マイナスから回復中", "直近上昇"):
+            score += 8
+            reasons.append(f"スランプ形状: {shape}")
+        elif shape == "大きくプラス済み":
+            score -= 6
+        elif shape == "直近下降" and (last_slump or 0) < 0:
+            score += 3
+            reasons.append("直近下降中のマイナス（追い打ち注意だが未出玉）")
+
+        # games / occupancy
+        games = html.get("total_start") or 0
+        if games < 200:
+            score -= 4
+            risks.append(f"稼働が薄い（{games}G）で当日シグナル不足")
+        elif games >= 800:
+            score += 3
+            reasons.append(f"稼働十分（{games}G）")
+
+        # current start approaching high-value zones
+        if zone:
+            if zone["status"] == "in_zone" and zone["g"] in (150, 450, 650):
+                score += 6
+                reasons.append(f"現在{zone['label']}内（{zone['start']}G）")
+            elif zone["status"] == "approaching" and zone["g"] in (150, 450) and zone.get("remain", 99) <= 40:
+                score += 5
+                reasons.append(f"{zone['label']}まで残り{zone['remain']}G（{zone['start']}G）")
+            elif zone["status"] == "approaching" and zone["g"] == 650 and zone.get("remain", 99) <= 40:
+                score += 3
+                reasons.append(f"650帯まで残り{zone['remain']}G")
+            elif zone.get("start", 0) >= 900:
+                score -= 3
+                risks.append(f"高ゲーム数滞在（{zone['start']}G）天井寄り")
+
+        # last 3 days already paid a lot
+        if last3_avg_slump is not None and last3_avg_slump >= 2000:
+            score -= 5
+            risks.append(f"直近3日平均最終差枚が厚い（{last3_avg_slump}）")
+        elif last3_avg_slump is not None and last3_avg_slump <= -800:
+            score += 5
+            reasons.append(f"直近3日は平均マイナス（{last3_avg_slump}）で据え置き余地")
+
+        # cold history: don't punish too hard historically
+        if html.get("current_start") and html["current_start"] >= 0:
+            pass
+
+        rows.append({
+            "machine_id": mid,
+            "unit": unit,
+            "score": round(score, 1),
+            "reasons": reasons,
+            "risks": risks,
+            "hist": h,
+            "last3": l3,
+            "last7": l7,
+            "weeks": {k: {"high_index": v["high_index"], "zone_special": v["zone_special"], "late_zone": v["late_zone"], "zone_650g": v["zone_650g"], "over_3time_single": v["over_3time_single"]} for k, v in weeks.items()},
+            "week_delta": week_delta,
+            "today": tpack,
+            "html": {k: v for k, v in html.items() if k != "slump_from_html"},
+            "slump": slump,
+            "recent_slump": recent_slump,
+            "plus_days": plus_days,
+            "minus_days": minus_days,
+            "avg_final": avg_final,
+            "last3_avg_slump": last3_avg_slump,
+            "chained_last": chained_last.get(mid),
+            "zone": zone,
+            "tags": meta.get("tags", []),
+            "period_high_index": meta.get("high_index"),
+        })
+
+    rows.sort(key=lambda r: (-r["score"], -r["hist"]["high_index"]))
+
+    # island today
+    today_slumps = [r["slump"].get("last") for r in rows if r["slump"].get("last") is not None]
+    island_today = {
+        "avg_slump": round(sum(today_slumps) / len(today_slumps)) if today_slumps else None,
+        "plus": sum(1 for v in today_slumps if v > 0),
+        "minus": sum(1 for v in today_slumps if v < 0),
+        "special": sum(r["today"]["zone_special"] for r in rows),
+        "z150": sum(r["today"]["zone_150g"] for r in rows),
+        "z450": sum(r["today"]["zone_450g"] for r in rows),
+        "z650": sum(r["today"]["zone_650g"] for r in rows),
+        "late": sum(r["today"]["late_zone"] for r in rows),
+        "cold": sum(r["today"]["over_3time_single"] for r in rows),
+        "games_sum": sum((r["html"].get("total_start") or 0) for r in rows),
+        "games_avg": round(sum((r["html"].get("total_start") or 0) for r in rows) / len(rows)),
+        "updated": source_updated.isoformat() if source_updated else None,
+    }
+
+    store_daily_out = []
+    for d in data["store_daily"]:
+        late = d["over_zone_650g"] + d["zone_1000g"]
+        store_daily_out.append({
+            "date": d["data_date"],
+            "zone_special": d["zone_special"],
+            "zone_650g": d["zone_650g"],
+            "late": late,
+            "cold": d["over_3time_single"],
+            "z150": d["zone_150g"],
+            "z450": d["zone_450g"],
+        })
+
+    out = {
+        "today": TODAY.isoformat(),
+        "complete_dates": complete_dates,
+        "last3_dates": last3_dates,
+        "last7_dates": last7_dates,
+        "med_hist": med_hist,
+        "med_l3": med_l3,
+        "island_today": island_today,
+        "island_final": island_final,
+        "store_daily": store_daily_out,
+        "rows": rows,
+    }
+    out_path = Path("data/setting/100928/1/_tmp_target_0901.json")
+    out_path.write_text(json.dumps(out, ensure_ascii=False, default=str), encoding="utf-8")
+    print(f"[SAVE] {out_path}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
+-----------------------------------------------------------------
+
+
+_tmp_print2_0901.py
+
+import json
+from pathlib import Path
+
+d = json.loads(Path("data/setting/100928/1/_tmp_target_0901.json").read_text(encoding="utf-8"))
+
+print("UPDATED", d["island_today"]["updated"])
+print("\nTODAY SPECIAL / COLD / LATE MACHINES")
+for r in d["rows"]:
+    t = r["today"]
+    flags = []
+    if t["zone_special"]:
+        flags.append(f"SPEC{t['zone_special']}(150={t['zone_150g']},450={t['zone_450g']})")
+    if t["over_3time_single"]:
+        flags.append(f"COLD{t['over_3time_single']}")
+    if t["zone_650g"]:
+        flags.append(f"650x{t['zone_650g']}")
+    if t["late_zone"]:
+        flags.append(f"LATEx{t['late_zone']}")
+    if flags:
+        print(
+            r["machine_id"],
+            r["unit"],
+            "score",
+            r["score"],
+            "slump",
+            r["slump"].get("last"),
+            "games",
+            r["html"].get("total_start"),
+            "cur",
+            r["html"].get("current_start"),
+            "|",
+            " ".join(flags),
+            "|",
+            r["html"].get("pseudos"),
+        )
+
+print("\n\nALL ROWS COMPACT")
+for i, r in enumerate(d["rows"], 1):
+    print(json.dumps({
+        "rank": i,
+        "id": r["machine_id"],
+        "unit": r["unit"],
+        "score": r["score"],
+        "reasons": r["reasons"],
+        "risks": r["risks"],
+        "hist_idx": r["hist"]["high_index"],
+        "hist_spec": r["hist"]["zone_special"],
+        "hist_150": r["hist"]["zone_150g"],
+        "hist_450": r["hist"]["zone_450g"],
+        "hist_650": r["hist"]["zone_650g"],
+        "hist_late": r["hist"]["late_zone"],
+        "hist_cold": r["hist"]["over_3time_single"],
+        "hist_late_ratio": None if r["hist"]["late_ratio"] is None else round(r["hist"]["late_ratio"], 2),
+        "l3_idx": r["last3"]["high_index"],
+        "l3_spec": r["last3"]["zone_special"],
+        "l3_650": r["last3"]["zone_650g"],
+        "l3_late": r["last3"]["late_zone"],
+        "weeks": r["weeks"],
+        "week_delta": r["week_delta"],
+        "today": {k: r["today"][k] for k in ["zone_special","zone_150g","zone_450g","zone_650g","late_zone","over_3time_single"]},
+        "slump": r["slump"].get("last"),
+        "shape": r["slump"].get("shape"),
+        "min": r["slump"].get("min"),
+        "max": r["slump"].get("max"),
+        "slope": r["slump"].get("recent_slope_per_h"),
+        "games": r["html"].get("total_start"),
+        "cur": r["html"].get("current_start"),
+        "bb": r["html"].get("bb"),
+        "art": r["html"].get("art"),
+        "max_hold": r["html"].get("max_hold"),
+        "pseudos": r["html"].get("pseudos"),
+        "last_event": r["html"].get("last_event"),
+        "recent_slump": r["recent_slump"],
+        "avg_final": r["avg_final"],
+        "l3_avg_slump": r["last3_avg_slump"],
+        "chained": r["chained_last"],
+        "plus_days": r["plus_days"],
+        "minus_days": r["minus_days"],
+        "zone": r["zone"],
+        "tags": r["tags"],
+    }, ensure_ascii=False))
+----------------------
