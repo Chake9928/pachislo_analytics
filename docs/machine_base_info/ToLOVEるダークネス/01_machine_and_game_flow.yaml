@@ -1,0 +1,117 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+machine:
+  name: "L ToLOVEるダークネス TRANCE ver.8.7"
+  available_settings: [2, 3, 4, 5, 6]
+  setting_1_exists: false
+  play_condition:
+    bet_per_game: 3
+    unit: "枚"
+    max_bet_required: true
+    description: "いかなる状態でも1ゲーム3枚掛けのMAX BETで遊技する。"
+  source_class: "provided_machine_spec"
+
+game_system:
+  initial_hit_triggers:
+    entries:
+      - id: "game_zone"
+        name: "ゲーム数ゾーン"
+        description: "規定ゲーム数のゾーン到達後、前兆を経て初当たりに当選する。"
+      - id: "chance_zone"
+        name: "CZ経由"
+        description: >-
+          左・中・右のチャンス目に対応する3種類のCZへ当選し、
+          CZを突破することで初当たりに当選する。
+    source_class: "provided_machine_spec"
+
+  normal_state:
+    chance_mark_and_cz_points:
+      chance_mark_variants:
+        - id: "left"
+          name: "左チャンス目"
+        - id: "center"
+          name: "中チャンス目"
+        - id: "right"
+          name: "右チャンス目"
+      cz_variant_count: 3
+      correspondence: "各チャンス目は左・中・右それぞれのCZポイントに対応する。"
+      point_accumulation: "対応するチャンス目成立時にCZポイントを獲得する。"
+      lottery_threshold:
+        operator: "gt"
+        points: 150
+        description: "CZポイントが150ptを超えるとCZ抽選に当選する。"
+      success_result: "CZ突破で初当たりとなる。"
+      source_class: "provided_machine_spec"
+
+    high_probability_state:
+      effect: "チャンス目成立時のCZポイント獲得数が優遇される。"
+      initial_period:
+        start_game: 0
+        end_game: 30
+      recurring_period:
+        interval_games: 100
+        duration_games: 20
+        starts_at_games: [100, 200, 300, 400, 500, 600, 700, 800, 900]
+      source_class: "provided_machine_spec"
+
+    invention_chance:
+      name: "発明品チャンス"
+      trigger_games: [100, 300, 500, 700]
+      possible_effects:
+        - "CZポイント獲得数の優遇"
+        - "CZを有利にするアイテムの獲得"
+      source_class: "provided_machine_spec"
+
+  initial_hit_flow:
+    normal_route:
+      sequence:
+        - event_id: "memorial_bonus"
+          name: "メモリアルボーナス"
+          event_class: "pseudo_bonus"
+        - event_id: "rakuen_keikaku"
+          name: "楽園計画"
+          event_class: "st"
+        - event_id: "trouble_bonus"
+          name: "とらぶるボーナス"
+          event_class: "at_bonus"
+      repeat_after_at:
+        sequence:
+          - event_id: "rakuen_keikaku"
+          - event_id: "trouble_bonus"
+        description: "AT枚数消化後に再度STへ入り、ST突破とATボーナスを繰り返す。"
+
+    trans_point_release_route:
+      sequence:
+        - event_id: "episode_bonus"
+          name: "エピソードボーナス"
+          event_class: "pseudo_bonus"
+        - event_id: "rakuen_keikaku"
+          name: "楽園計画"
+          event_class: "st"
+        - event_id: "trouble_bonus"
+          name: "とらぶるボーナス"
+          event_class: "at_bonus"
+      benefit: "ボーナスストック（Vストック）を獲得する。"
+    source_class: "provided_machine_spec"
+
+  at_bonus:
+    id: "trouble_bonus"
+    name: "とらぶるボーナス"
+    payout_determination: >-
+      ST突破時に枚数決定ゾーンへ移行し、ATボーナスの液晶表示上の獲得枚数を決定する。
+    payout_zone_count: 3
+    payout_zone_reference: "03_payout_and_advantageous_section.yaml"
+    source_class: "provided_machine_spec"
+
+terminology:
+  pseudo_bonus:
+    examples: ["メモリアルボーナス", "エピソードボーナス"]
+  st:
+    canonical_name: "楽園計画"
+  at_bonus:
+    canonical_name: "とらぶるボーナス"
+  trans_point:
+    alias: "穢れポイント"
+  advantageous_section:
+    japanese_name: "有利区間"

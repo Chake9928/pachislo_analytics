@@ -1,0 +1,142 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+rule_evaluation:
+  event_order: "jackpot_eventsを時系列の昇順に並べて評価する。"
+  next_event_definition: "対象イベントの直後に記録された次のjackpot_events行。"
+  previous_event_definition: "対象イベントの直前に記録された前のjackpot_events行。"
+  boundary_policy:
+    payout_100: "メモリアルボーナス側に含める。"
+    normal_st_start_count:
+      standard_min: 1
+      standard_max: 10
+      extension_item_possible: true
+      extension_typical_games: 1
+      extension_max_games: 5
+      absolute_max: 15
+      description: >-
+        STの標準ゲーム数は10G。ATボーナス中にST延長アイテムを獲得することがあり、
+        実戦上の延長は基本1G、最大5Gであるため、判定上限を15Gとする。
+
+confirmed_judgements:
+  - rule_id: "confirm_memorial_bonus"
+    target_event_id: "memorial_bonus"
+    target_event_name: "メモリアルボーナス"
+    judgement_type: "confirmed"
+    confidence: "high"
+    conditions:
+      all:
+        - field: "event_type"
+          operator: "eq"
+          value: "BB"
+        - field: "payout"
+          operator: "lte"
+          value: 100
+        - relation: "next_event"
+          field: "event_type"
+          operator: "eq"
+          value: "ART"
+    interpretation: >-
+      payoutが100枚以下で、直後がARTのBBは、初当たりのメモリアルボーナスとして確定する。
+    source_class: "provided_machine_spec"
+
+  - rule_id: "confirm_episode_bonus"
+    target_event_id: "episode_bonus"
+    target_event_name: "エピソードボーナス"
+    judgement_type: "confirmed"
+    confidence: "high"
+    conditions:
+      all:
+        - field: "event_type"
+          operator: "eq"
+          value: "BB"
+        - field: "payout"
+          operator: "gt"
+          value: 100
+        - field: "payout"
+          operator: "lte"
+          value: 250
+        - relation: "next_event"
+          field: "event_type"
+          operator: "eq"
+          value: "ART"
+    interpretation: >-
+      payoutが100枚超250枚以下で、直後がARTのBBは、
+      穢れ開放時のエピソードボーナスとして確定する。
+    source_class: "provided_machine_spec"
+
+  - rule_id: "confirm_normal_trouble_bonus"
+    target_event_id: "trouble_bonus"
+    target_event_name: "通常ルートのとらぶるボーナス"
+    judgement_type: "confirmed"
+    confidence: "high"
+    conditions:
+      all:
+        - field: "event_type"
+          operator: "eq"
+          value: "BB"
+        - relation: "previous_event"
+          field: "event_type"
+          operator: "eq"
+          value: "ART"
+        - field: "start_count"
+          operator: "between_inclusive"
+          min: 1
+          max: 15
+    interpretation: >-
+      ARTの直後にあり、start_countが1〜15GのBBは、
+      ST突破後のとらぶるボーナスとして確定する。
+    supporting_spec: >-
+      STは標準10Gであり、ST延長アイテムによる実戦上の最大延長5Gを加味する。
+    source_class: "provided_machine_spec"
+
+estimated_judgements:
+  - rule_id: "estimate_taiyaki_direct_trouble_bonus"
+    target_event_id: "trouble_bonus_after_taiyaki"
+    target_event_name: "もぐもぐたい焼きタイム経由の直とらぶるボーナス"
+    judgement_type: "estimated"
+    confidence: "medium"
+    candidate_strength: "strong_candidate"
+    conditions:
+      all:
+        - field: "event_type"
+          operator: "eq"
+          value: "BB"
+        - field: "start_count"
+          operator: "gte"
+          value: 30
+        - field: "payout"
+          operator: "gte"
+          value: 400
+    interpretation: >-
+      start_countが30G以上でpayoutが400枚以上のBBは、
+      もぐもぐたい焼きタイム終了後にSTを経由せず開始した上位ATの
+      とらぶるボーナスである可能性が高い。
+    derivation:
+      - "もぐもぐたい焼きタイムは30G+α継続する。"
+      - "たい焼き終了後の初回はSTを経由せず、とらぶるボーナスから開始する。"
+      - "上位ATでは液晶表示500枚以上の枚数決定ゾーンが保証される。"
+      - "実獲得枚数は液晶表示枚数の約0.8倍であるため、500枚×0.8≒400枚となる。"
+    caution: >-
+      payoutの0.8倍換算は概算であり、start_countとpayoutの条件だけでは
+      たい焼き経由を100%確定できない。前後イベント、連続獲得枚数、
+      有利区間切断条件との整合性を併せて確認する。
+    source_class: "derived_estimate"
+
+unmatched_event_policy:
+  classification: "unclassified"
+  instructions:
+    - "いずれの確定条件にも一致しないBBを、推測だけで確定イベントへ分類しない。"
+    - "たい焼き推定条件だけに一致する場合はestimatedのまま保持する。"
+    - "複数ルールが競合した場合は、confirmedをestimatedより優先する。"
+    - "confirmed同士が競合した場合はデータ異常として記録し、自動確定しない。"
+
+recommended_output_fields:
+  - "judged_event_id"
+  - "judged_event_name"
+  - "judgement_type"
+  - "confidence"
+  - "matched_rule_id"
+  - "evidence"
+  - "caution"
+

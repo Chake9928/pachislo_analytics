@@ -1,0 +1,64 @@
+schema_version: "1.0.0"
+
+knowledge_base:
+  id: "toloveru_darkness_trance_8_7"
+  name: "L ToLOVEるダークネス TRANCE ver.8.7 AI向け機種知識ベース"
+  language: "ja-JP"
+  purpose: >-
+    機種仕様、解析情報、データカウンターの観測仕様、イベント判定ルール、
+    および設定推測時の解釈指針をAIへ提供する。
+
+model:
+  model_id: "toloveru_darkness_trance_8_7"
+  name: "L ToLOVEるダークネス TRANCE ver.8.7"
+  short_name: "ToLOVEる8.7"
+
+load_order:
+  - file: "01_machine_and_game_flow.yaml"
+    role: "機種の基本仕様とゲームフロー"
+  - file: "02_setting_zone_and_reset.yaml"
+    role: "設定差、ゾーン、穢れ、リセット仕様"
+  - file: "03_payout_and_advantageous_section.yaml"
+    role: "枚数決定ゾーン、ST、上位AT、有利区間切断仕様"
+  - file: "04_data_counter_observation.yaml"
+    role: "データカウンターとDBで観測可能な情報"
+  - file: "05_event_judgement_rules.yaml"
+    role: "確定判定と推定判定のルール"
+  - file: "06_analysis_guidance.yaml"
+    role: "設定推測と分析時の判断原則"
+
+classification_definitions:
+  source_class:
+    provided_machine_spec:
+      meaning: "本知識ベースの前提として確定した機種仕様"
+    published_analysis:
+      meaning: "設定別数値など、公表解析値として提供された情報"
+    empirical_observation:
+      meaning: "実戦・集計上の傾向や目安"
+    derived_estimate:
+      meaning: "既知の仕様や概算値から導いた推定"
+
+  judgement_type:
+    confirmed:
+      meaning: >-
+        指定された観測条件がすべて成立した場合、分析上は対象イベントとして
+        確定して扱う判定。
+    estimated:
+      meaning: >-
+        観測条件から対象イベントの有力候補とするが、100%の確定とは扱わない判定。
+
+  confidence:
+    high:
+      meaning: "根拠が強く、主要な分析材料として利用できる"
+    medium:
+      meaning: "有力だが、他の履歴や前後関係との照合が必要"
+    low:
+      meaning: "補助的な参考情報としてのみ利用する"
+
+ai_loading_instructions:
+  - "load_orderの順番で全ファイルを読み込むこと。"
+  - "source_classとjudgement_typeは別の概念として扱うこと。"
+  - "05_event_judgement_rules.yamlのconfirmed_judgementsとestimated_judgementsを混在させないこと。"
+  - "YAMLに記載のない数値や確率を推測で補完しないこと。"
+  - "近似値を確定値として扱わないこと。"
+

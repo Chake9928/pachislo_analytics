@@ -1,0 +1,142 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+st:
+  lower:
+    id: "lower_rakuen_keikaku"
+    name: "下位ST（楽園計画）"
+    continuation_rate:
+      approximate: 0.53
+    source_class: "published_analysis"
+
+  upper:
+    id: "upper_rakuen_keikaku"
+    name: "上位ST（楽園計画）"
+    continuation_rate:
+      approximate: 0.80
+    entry_condition:
+      timing: "ST3連目突破時のレバーオン"
+      probability: 0.50
+    payout_guarantee:
+      minimum_displayed_payout: 500
+      equivalent_or_higher_than: "LOVEスプラッシュ"
+    source_class: "provided_machine_spec"
+
+payout_conversion:
+  displayed_payout:
+    meaning: "液晶上に表示されるAT獲得予定枚数"
+  actual_payout:
+    meaning: "データカウンターおよびjackpot_events.payoutに記録される実獲得枚数"
+  approximate_actual_to_displayed_ratio: 0.80
+  reason: >-
+    AT中は15枚役ベル高確率状態だが、遊技中は1ゲームにつき3枚を消費するため、
+    実獲得枚数は液晶表示枚数の0.8倍前後となる。
+  caution: "0.80は概算比率であり、個々のATの実獲得枚数を厳密に保証する値ではない。"
+  source_class: "derived_estimate"
+
+payout_determination_zones:
+  normal_at_selection_probabilities:
+    bain_attack: 0.43
+    peropero_chance: 0.38
+    love_splash: 0.19
+    total: 1.00
+    source_class: "published_analysis"
+
+  entries:
+    - zone_id: "bain_attack"
+      name: "ばいんアタック"
+      displayed_payout_candidates: [100, 200, 400, 800, 1600]
+      typical_selection: "200枚の選択率が最も高い。"
+      restrictions:
+        payout_1600: "上位AT滞在時のみ選択される。"
+      source_class: "provided_machine_spec"
+
+    - zone_id: "peropero_chance"
+      name: "ペロペロちゃんす"
+      displayed_payout:
+        minimum: 300
+        typical_range:
+          min: 300
+          max: 500
+        strict_upper_bound: 999
+      outlier:
+        example: "900枚前後"
+        frequency: "very_rare"
+      source_class: "empirical_observation"
+
+    - zone_id: "love_splash"
+      name: "LOVEスプラッシュ"
+      displayed_payout:
+        minimum: 500
+        typical_range:
+          min: 500
+          max: 750
+        strict_upper_bound: 999
+      outlier:
+        description: "800枚以上"
+        frequency: "very_rare"
+      source_class: "empirical_observation"
+
+upper_at_whisper:
+  name: "ばいんアタック（ウィスパー演出）"
+  condition: "上位AT中にばいんアタックが選択された場合"
+  behavior:
+    whisper_occurs: true
+    displayed_payout_candidates:
+      800: 0.50
+      1600: 0.50
+  selection_probability_by_setting:
+    2: 0.031
+    3: 0.036
+    4: 0.060
+    5: 0.071
+    6: 0.119
+  setting_tendency: "高設定ほどウィスパー演出の選択率が高い。"
+  source_class: "published_analysis"
+
+advantageous_section:
+  piercing_feature_enabled: true
+  transition_timing: >-
+    有利区間切断条件を満たした場合、ST失敗時、またはAT終了後に次のSTへ入る前に
+    有利区間を切断し、もぐもぐたい焼きタイムへ移行する。
+
+  cut_conditions:
+    - condition_id: "initial_hit_route_1000_actual_payout"
+      route: "初当たり経由の一連のボーナス区間"
+      sequence_example: "メモリアルボーナス→楽園計画→とらぶるボーナス→楽園計画→とらぶるボーナス…"
+      accumulated_actual_payout_gte: 1000
+      source_class: "provided_machine_spec"
+
+    - condition_id: "taiyaki_route_1800_actual_payout"
+      route: "もぐもぐたい焼きタイム経由の一連のボーナス区間"
+      sequence_example: "たい焼き終了後の直とらぶるボーナス→楽園計画→とらぶるボーナス→楽園計画…"
+      accumulated_actual_payout_gte: 1800
+      source_class: "provided_machine_spec"
+
+    - condition_id: "advantageous_section_difference_2400"
+      route: "状態不問"
+      advantageous_section_net_difference_gte: 2400
+      unit: "枚"
+      source_class: "provided_machine_spec"
+
+  taiyaki_route_reset_rule:
+    description: >-
+      たい焼き終了後のボーナス区間が途切れて通常時へ戻った場合、
+      次回初当たりからの切断条件は実獲得合計1000枚以上へ戻る。
+      1800枚条件は、たい焼き経由の連続ボーナス区間だけに適用する。
+    source_class: "provided_machine_spec"
+
+mogumogu_taiyaki_time:
+  name: "もぐもぐたい焼きタイム"
+  event_class: "item_specialized_zone"
+  duration:
+    base_games: 30
+    extension_possible: true
+    notation: "30G+α"
+  after_end:
+    upper_at_continues: true
+    first_bonus_starts_without_st: true
+    first_event: "trouble_bonus"
+    description: >-
+      終了後の初回だけはSTを経由せず、上位ATのとらぶるボーナスから開始する。
+  source_class: "provided_machine_spec"

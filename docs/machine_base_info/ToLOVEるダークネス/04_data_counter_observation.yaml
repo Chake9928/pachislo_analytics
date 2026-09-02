@@ -1,0 +1,70 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+data_source:
+  table: "jackpot_events"
+  purpose: "データカウンターに記録された時系列の大当たり履歴を参照する。"
+
+observable_fields:
+  event_type:
+    column: "event_type"
+    values:
+      BB: "疑似ボーナスまたはATボーナス"
+      ART: "データカウンター上で独立表示される初回ST"
+  payout:
+    column: "payout"
+    meaning: "各イベントの実獲得枚数"
+    unit: "枚"
+  start_count:
+    column: "start_count"
+    meaning: "直前イベント終了後から当該イベント開始までのカウント"
+
+event_mapping:
+  BB:
+    possible_machine_events:
+      - event_id: "memorial_bonus"
+        name: "メモリアルボーナス"
+        event_class: "pseudo_bonus"
+      - event_id: "episode_bonus"
+        name: "エピソードボーナス"
+        event_class: "pseudo_bonus"
+      - event_id: "trouble_bonus"
+        name: "とらぶるボーナス"
+        event_class: "at_bonus"
+    caution: "BB表記だけでは、疑似ボーナスとATボーナスを直接区別できない。"
+
+  ART:
+    possible_machine_events:
+      - event_id: "first_st_after_initial_hit"
+        name: "初当たり後の初回ST（楽園計画）"
+      - event_id: "first_st_after_taiyaki_direct_bonus"
+        name: "たい焼き終了後の直ATボーナス後に入る初回ST（楽園計画）"
+    inclusion_rule: >-
+      ATボーナス後の2回目以降のSTは独立したARTとして記録されず、
+      ATボーナスのBB表記内に含まれる。
+
+unobservable_information:
+  chance_zone:
+    observable: false
+    items:
+      - "CZポイント保有量"
+      - "CZポイント獲得量"
+      - "CZ抽選当選"
+      - "CZ突入"
+      - "CZ成功"
+      - "CZ失敗"
+    analysis_consequence: >-
+      jackpot_eventsだけではCZ当選率、CZ成功率、CZ種別を判別できないため、
+      CZ関連の設定推測を行ってはならない。
+
+observation_scope:
+  directly_observable:
+    - "BBまたはARTというデータカウンター上のイベント種別"
+    - "イベントごとの実獲得枚数"
+    - "イベントごとのstart_count"
+    - "イベントの時系列と前後関係"
+  requires_rule_based_judgement:
+    - "BBがメモリアルボーナス、エピソードボーナス、とらぶるボーナスのいずれか"
+    - "とらぶるボーナスがたい焼き経由の直ATか"
+  rules_reference: "05_event_judgement_rules.yaml"
+

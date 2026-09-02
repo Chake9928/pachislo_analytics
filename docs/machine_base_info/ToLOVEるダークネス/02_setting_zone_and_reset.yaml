@@ -1,0 +1,123 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+setting_values:
+  initial_hit_probability:
+    name: "初当たり確率"
+    unit: "1/N"
+    values:
+      2: {denominator: 353}
+      3: {denominator: 346}
+      4: {denominator: 328}
+      5: {denominator: 320}
+      6: {denominator: 307}
+    setting_tendency: "高設定ほど初当たり確率が高い。"
+    source_class: "published_analysis"
+
+zones:
+  common:
+    precursor_games:
+      approximate: 25
+      description: "ゾーン到達後、約25Gの前兆を経て初当たりとなる。"
+      source_class: "empirical_observation"
+
+  entries:
+    - zone_id: "zone_150"
+      game: 150
+      role: "高設定優遇ゾーン"
+      eligible_settings: "主に設定5以上"
+      hit_level: "low"
+      setting_dependency: "strong"
+      practical_high_setting_hit_rate:
+        approximate: 0.05
+        unit: "probability"
+      description: >-
+        設定5以上で低確率当選する。設定4以下の当選事例もあるが、
+        外れ値レベルの極低確率として扱う。高設定でも実戦上の当選率は5%前後である。
+      source_class: "empirical_observation"
+
+    - zone_id: "zone_250"
+      game: 250
+      role: "全設定対象ゾーン"
+      eligible_settings: "設定2〜6"
+      hit_level: "low"
+      setting_dependency: "positive_with_higher_setting"
+      description: >-
+        設定を問わず低確率で当選する。高設定ほど当選率が高いが、
+        正確な設定別当選率は公表されていない。
+      source_class: "empirical_observation"
+
+    - zone_id: "zone_450"
+      game: 450
+      role: "高設定優遇ゾーン"
+      eligible_settings: "主に高設定"
+      hit_level: "very_low"
+      setting_dependency: "strong"
+      practical_high_setting_hit_rate:
+        approximate: 0.05
+        unit: "probability"
+      description: >-
+        150Gと同様の高設定優遇ゾーン。ただし高設定でも当選率は極めて低く、
+        実戦上の当選率は5%前後である。
+      source_class: "empirical_observation"
+
+    - zone_id: "zone_650"
+      game: 650
+      role: "全設定対象ゾーン"
+      eligible_settings: "設定2〜6"
+      hit_level: "medium"
+      relative_expectation_vs_250: "約2倍"
+      setting_dependency: "positive_with_higher_setting"
+      description: >-
+        設定を問わず中確率で当選し、250Gゾーンの約2倍の期待度がある。
+        高設定ほど当選率が高いが、正確な設定別当選率は公表されていない。
+      source_class: "empirical_observation"
+
+    - zone_id: "ceiling_1000"
+      game: 1000
+      role: "通常時天井"
+      guaranteed_ceiling: true
+      description: "通常状態における本機の天井。"
+      source_class: "provided_machine_spec"
+
+trans_point:
+  name: "トランスポイント"
+  alias: "穢れポイント"
+  acquisition_examples:
+    - "CZ失敗時の一部"
+    - "ST単発駆け抜け時"
+  release:
+    threshold_points: 100
+    timing: "100ptを保持した状態での初当たり時"
+    reset_points_after_release: 0
+    replaces_event:
+      from: "memorial_bonus"
+      to: "episode_bonus"
+    benefit: "ボーナスストック（Vストック）を獲得する。"
+  source_class: "provided_machine_spec"
+
+reset:
+  trigger: "設定変更"
+  enabled_on_setting_change: true
+  benefits:
+    first_ceiling:
+      game: 650
+      description: "設定変更後の初回天井は650Gゾーンとなる。"
+    initial_cz_points:
+      allocation: "random"
+      expected_points_description: "期待値は50pt以上。"
+    initial_trans_points:
+      allocation: "random"
+      min_points: 0
+      max_points: 100
+    internal_game_offset:
+      enabled: true
+      description: "初期ゲーム数が内部的に加算される。"
+  analysis_caution:
+    id: "reset_first_hit_zone_is_unidentifiable"
+    description: >-
+      内部的な初期ゲーム数加算があるため、リセット後最初の初当たりは、
+      データカウンター上のゲーム数だけでは該当ゾーンを正確に判別できない。
+    action: "リセット後初回の初当たりをゾーン分析対象から除外する。"
+  source_class: "provided_machine_spec"
+

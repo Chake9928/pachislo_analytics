@@ -1,0 +1,126 @@
+schema_version: "1.0.0"
+model_id: "toloveru_darkness_trance_8_7"
+
+analysis_objective:
+  description: >-
+    jackpot_eventsを中心とするデータカウンター履歴から、観測可能な範囲で
+    初当たり、ST、AT、ゾーン挙動を整理し、設定推測の根拠を提示する。
+  forbidden_overreach: >-
+    観測できないCZ情報や、確定条件を満たさないイベントを断定してはならない。
+
+principles:
+  - principle_id: "separate_confirmed_and_estimated"
+    priority: "critical"
+    rule: >-
+      確定判定と推定判定を別集計にし、推定イベントを確定イベント数へ加算しない。
+    reference: "05_event_judgement_rules.yaml"
+
+  - principle_id: "do_not_judge_setting_from_payout_only"
+    priority: "critical"
+    rule: "差枚やAT獲得枚数が大きいことだけを理由に高設定と判定しない。"
+    reason: >-
+      本機はST継続、上位ST移行、枚数決定ゾーンの選択による出玉分散が大きく、
+      低設定でも事故による大幅プラスが発生し得る。
+
+  - principle_id: "cz_is_unobservable"
+    priority: "critical"
+    rule: >-
+      jackpot_eventsからCZ当選率、CZ成功率、CZポイント保有量を推定または断定しない。
+    reason: "CZ関連情報はデータカウンターに記録されない。"
+
+  - principle_id: "exclude_reset_first_hit_from_zone_analysis"
+    priority: "high"
+    rule: "リセット後最初の初当たりをゲーム数ゾーン分析から除外する。"
+    reason: "リセット時は初期ゲーム数が内部加算され、表示ゲーム数から実際のゾーンを判別できない。"
+
+zone_analysis:
+  priority_order:
+    - zone_game: 250
+      priority: 1
+      weight_level: "high"
+      positive_evidence: "250Gゾーン当選回数が多いことを、高設定の主要なプラス材料とする。"
+      negative_evidence: >-
+        試行回数が十分あるにもかかわらず当選が少ない場合は弱いマイナス材料とするが、
+        単日・短時間では断定しない。
+
+    - zone_games: [150, 450]
+      priority: 2
+      weight_level: "medium_when_observed"
+      positive_evidence: "当選が確認できた場合は、高設定を示す補助的なプラス材料とする。"
+      negative_evidence: >-
+        当選がなくてもマイナス評価しない。高設定でも実戦上の当選率が各5%前後と低く、
+        半日や試行回数の少ないデータでは未当選が十分起こり得る。
+
+    - zone_game: 650
+      priority: 3
+      weight_level: "low_to_medium"
+      positive_evidence: "650G到達前の初当たりが多く、深いハマりが少ないことを補助的に評価する。"
+      negative_evidence: >-
+        650Gゾーン到達や通常時1000G天井到達はマイナス材料になり得るが、
+        単発事例だけで低設定と断定しない。
+
+  overall_weight_relationship: "250Gゾーン > 150G・450Gゾーン > 650G・天井未到達の補助評価"
+  precursor_tolerance_games:
+    approximate: 25
+    instruction: "ゾーン到達ゲーム数そのものではなく、約25Gの前兆を含む当選ゲーム数として判定する。"
+
+initial_hit_analysis:
+  reference_values:
+    2: "1/353"
+    3: "1/346"
+    4: "1/328"
+    5: "1/320"
+    6: "1/307"
+  interpretation:
+    - "総通常ゲーム数と確定した初当たり回数から初当たり確率を算出する。"
+    - "設定間の数値差が小さいため、単日・少試行の初当たり確率だけで設定を断定しない。"
+    - "ゾーン挙動、複数日、周辺台、並び投入傾向と併用する。"
+
+whisper_analysis:
+  usable_when: "上位ATの試行回数とウィスパー出現回数を識別できる場合"
+  importance: "high"
+  rule: >-
+    上位AT試行回数が十分ある場合、ウィスパー出現率を設定推測材料として使用する。
+    ただし、データカウンターだけでウィスパー演出を直接観測できない場合は集計しない。
+  published_probabilities:
+    2: 0.031
+    3: 0.036
+    4: 0.060
+    5: 0.071
+    6: 0.119
+
+taiyaki_analysis:
+  rule: >-
+    たい焼き経由の直ATは推定判定として別集計し、確定回数として扱わない。
+  supporting_checks:
+    - "start_countが30G以上か"
+    - "payoutが400枚以上か"
+    - "直前の一連のボーナス区間で有利区間切断条件を満たし得るか"
+    - "直後の履歴が上位AT継続の流れと整合するか"
+  caution: "payout 400枚は液晶500枚×概算0.8から導いた推定閾値である。"
+
+multi_axis_analysis:
+  recommended_context:
+    - "単日だけでなく複数日の同一台データ"
+    - "周辺台の同日挙動"
+    - "並び・列・BOX単位の投入傾向"
+    - "店舗の過去の設定投入傾向"
+  instruction: >-
+    機種挙動の設定差と店舗側の投入傾向を分離して評価したうえで、最終的に統合する。
+
+recommended_analysis_output:
+  sections:
+    - "観測データの概要"
+    - "確定判定イベント"
+    - "推定判定イベント"
+    - "250Gゾーン評価"
+    - "150G・450Gゾーンの補助評価"
+    - "650G・1000G到達状況"
+    - "初当たり確率の参考比較"
+    - "出玉の上振れ・下振れに関する注意"
+    - "設定推測の結論と根拠"
+    - "不足データと判定不能事項"
+  conclusion_requirements:
+    - "確定事実、推定、分析者の解釈を文章上でも分ける。"
+    - "根拠ごとに強・中・弱の重要度を付ける。"
+    - "データ不足時は無理に設定を断定せず、候補範囲を示す。"
