@@ -33,6 +33,26 @@ principles:
     rule: "リセット後最初の初当たりをゲーム数ゾーン分析から除外する。"
     reason: "リセット時は初期ゲーム数が内部加算され、表示ゲーム数から実際のゾーンを判別できない。"
 
+  - principle_id: "advantageous_cut_equals_taiyaki"
+    priority: "critical"
+    rule: >-
+      有利区間切断とたい焼きタイムは同一事象として扱う。
+      「終日で大きなボーナス区間があったか」を問う分析の条件は、
+      上位ST突入の有無ではなく、有利切断（たい焼き）の有無とする。
+    reason: >-
+      上位ST抽選は直接観測できない。有利切断はたい焼き直ATとして推定観測できる。
+      実獲得1000枚以上の区間を上位STや有利切断とみなしてはならない。
+    reference: "03_payout_and_advantageous_section.yaml"
+
+  - principle_id: "do_not_judge_upper_st_from_payout_1000_only"
+    priority: "high"
+    rule: >-
+      初当たり経由の実獲得1000枚以上であることだけを理由に、上位ST突入と判定しない。
+    reason: >-
+      下位のみの区間は1500枚以上で切断する。1000枚到達は上位STの証明にならない。
+      1000〜1499枚での切断（たい焼き移行）が、上位ST突入の補助根拠になる。
+    reference: "03_payout_and_advantageous_section.yaml"
+
 zone_analysis:
   priority_order:
     - zone_game: 250
@@ -95,9 +115,23 @@ taiyaki_analysis:
   supporting_checks:
     - "start_countが30G以上か"
     - "payoutが400枚以上か"
-    - "直前の一連のボーナス区間で有利区間切断条件を満たし得るか"
+    - "直前の初当たり経由区間が下位のみなら、実獲得合計1500枚以上か"
+    - "直前の初当たり経由区間が上位突入なら、実獲得合計1000枚以上か"
+    - "直前区間の実獲得が1000〜1499枚での切断なら、上位ST突入の根拠になるか"
     - "直後の履歴が上位AT継続の流れと整合するか"
-  caution: "payout 400枚は液晶500枚×概算0.8から導いた推定閾値である。"
+  caution: >-
+    payout 400枚は液晶500枚×概算0.8から導いた推定閾値である。
+    実獲得1000枚以上であることのみで上位STやたい焼き前提の切断と扱わない。
+
+upper_st_analysis:
+  rule: >-
+    上位ST突入は、ST3連目突破時の50%抽選という仕様を直接観測できない。
+    有利区間切断の分岐を使って推定する場合は、たい焼き候補との組み合わせで評価する。
+  positive_evidence:
+    - "初当たり経由区間が実獲得1000〜1499枚で切断し、たい焼き直AT候補が続く"
+  insufficient_evidence:
+    - "区間内実獲得が1000枚以上であることだけ"
+  reference: "03_payout_and_advantageous_section.yaml"
 
 multi_axis_analysis:
   recommended_context:
@@ -113,6 +147,8 @@ recommended_analysis_output:
     - "観測データの概要"
     - "確定判定イベント"
     - "推定判定イベント"
+    - "有利切断（たい焼き）推定"
+    - "上位STの補助推定（切断分岐との照合。有利切断と同一視しない）"
     - "250Gゾーン評価"
     - "150G・450Gゾーンの補助評価"
     - "650G・1000G到達状況"

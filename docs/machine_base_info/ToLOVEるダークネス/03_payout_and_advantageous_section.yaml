@@ -96,21 +96,45 @@ upper_at_whisper:
 
 advantageous_section:
   piercing_feature_enabled: true
+  cut_equals_taiyaki:
+    description: >-
+      有利区間切断と、もぐもぐたい焼きタイムは同一事象である。
+      有利切断条件を満たして切断した時点でたい焼きタイムへ移行する。
+      分析上の観測対象は「上位STに入ったか」ではなく「有利切断（たい焼き）が起きたか」とする。
+    source_class: "provided_machine_spec"
   transition_timing: >-
     有利区間切断条件を満たした場合、ST失敗時、またはAT終了後に次のSTへ入る前に
     有利区間を切断し、もぐもぐたい焼きタイムへ移行する。
+    この移行が有利切断そのものである。
 
   cut_conditions:
-    - condition_id: "initial_hit_route_1000_actual_payout"
-      route: "初当たり経由の一連のボーナス区間"
+    - condition_id: "initial_hit_route_lower_only_1500_actual_payout"
+      route: "初当たり経由の一連のボーナス区間（下位のみ）"
+      st_state: "lower_only"
       sequence_example: "メモリアルボーナス→楽園計画→とらぶるボーナス→楽園計画→とらぶるボーナス…"
+      accumulated_actual_payout_gte: 1500
+      unit: "枚"
+      description: >-
+        初当たり経由の同一ボーナス区間で、上位STに入らなかった場合の切断条件。
+        区間内の実獲得合計が1500枚以上で有利区間を切断する。
+      source_class: "provided_machine_spec"
+
+    - condition_id: "initial_hit_route_lower_to_upper_1000_actual_payout"
+      route: "初当たり経由の一連のボーナス区間（下位から上位突入）"
+      st_state: "entered_upper"
+      sequence_example: "メモリアルボーナス→楽園計画→とらぶるボーナス→…→上位ST"
       accumulated_actual_payout_gte: 1000
+      unit: "枚"
+      description: >-
+        初当たり経由の同一ボーナス区間で、下位STから上位STへ突入した場合の切断条件。
+        区間内の実獲得合計が1000枚以上で有利区間を切断する。
       source_class: "provided_machine_spec"
 
     - condition_id: "taiyaki_route_1800_actual_payout"
       route: "もぐもぐたい焼きタイム経由の一連のボーナス区間"
       sequence_example: "たい焼き終了後の直とらぶるボーナス→楽園計画→とらぶるボーナス→楽園計画…"
       accumulated_actual_payout_gte: 1800
+      unit: "枚"
       source_class: "provided_machine_spec"
 
     - condition_id: "advantageous_section_difference_2400"
@@ -119,16 +143,34 @@ advantageous_section:
       unit: "枚"
       source_class: "provided_machine_spec"
 
+  initial_hit_route_cut_rule:
+    description: >-
+      初当たり経由の切断閾値は、その同一区間で上位STに入ったかどうかで分岐する。
+      上位STに入らなかった場合は1500枚以上、上位STに入った場合は1000枚以上。
+    implication_for_upper_st_judgement:
+      - id: "cut_at_1000_to_1499_implies_upper_st"
+        meaning: >-
+          初当たり経由のボーナス区間が、実獲得1000枚以上1499枚以下で有利区間切断
+          （たい焼き移行）した場合、下位のみでは切断しないため、
+          その区間で上位STに突入していた。
+      - id: "payout_1000_alone_does_not_prove_upper_st"
+        meaning: >-
+          区間内実獲得が1000枚以上であることだけを理由に、上位ST突入と判定してはならない。
+          下位のみでも1500枚未満では切断せず継続し得る。
+    source_class: "provided_machine_spec"
+
   taiyaki_route_reset_rule:
     description: >-
       たい焼き終了後のボーナス区間が途切れて通常時へ戻った場合、
-      次回初当たりからの切断条件は実獲得合計1000枚以上へ戻る。
+      次回初当たりからの切断条件は初当たり経由の分岐に戻る。
+      すなわち下位のみなら1500枚以上、下位から上位突入なら1000枚以上。
       1800枚条件は、たい焼き経由の連続ボーナス区間だけに適用する。
     source_class: "provided_machine_spec"
 
 mogumogu_taiyaki_time:
   name: "もぐもぐたい焼きタイム"
   event_class: "item_specialized_zone"
+  identity: "有利区間切断の結果として必ず発生する区間。有利切断とたい焼きは同一事象として扱う。"
   duration:
     base_games: 30
     extension_possible: true

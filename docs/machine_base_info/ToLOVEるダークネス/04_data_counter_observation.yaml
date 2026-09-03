@@ -65,6 +65,13 @@ observation_scope:
     - "イベントの時系列と前後関係"
   requires_rule_based_judgement:
     - "BBがメモリアルボーナス、エピソードボーナス、とらぶるボーナスのいずれか"
-    - "とらぶるボーナスがたい焼き経由の直ATか"
+    - "とらぶるボーナスがたい焼き経由の直ATか（有利切断の観測）"
+  unobservable_directly:
+    - "上位ST抽選の成否（ST3連目突破時の50%）"
+    - "有利区間の内部カウンタそのもの"
+  analysis_identity:
+    - "有利切断 = もぐもぐたい焼きタイム。両者を別イベントとして数えない。"
+    - "たい焼き直AT候補の有無を、有利切断の推定観測として使う。"
+    - "有利切断の有無と、上位ST突入の有無を同一視しない。"
   rules_reference: "05_event_judgement_rules.yaml"
 

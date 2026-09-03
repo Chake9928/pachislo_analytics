@@ -61,4 +61,5 @@ ai_loading_instructions:
   - "05_event_judgement_rules.yamlのconfirmed_judgementsとestimated_judgementsを混在させないこと。"
   - "YAMLに記載のない数値や確率を推測で補完しないこと。"
   - "近似値を確定値として扱わないこと。"
+  - "有利区間切断とたい焼きタイムを同一事象として扱うこと。上位ST突入と有利切断を同一視しないこと。"
 

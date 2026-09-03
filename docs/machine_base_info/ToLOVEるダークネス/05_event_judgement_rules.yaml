@@ -121,15 +121,53 @@ estimated_judgements:
       payoutの0.8倍換算は概算であり、start_countとpayoutの条件だけでは
       たい焼き経由を100%確定できない。前後イベント、連続獲得枚数、
       有利区間切断条件との整合性を併せて確認する。
+      直前区間が下位のみなら切断閾値は1500枚、上位突入なら1000枚である。
     source_class: "derived_estimate"
+
+session_judgements:
+  - rule_id: "estimate_upper_st_from_initial_hit_cut_1000_to_1499"
+    target_event_id: "upper_st_entry"
+    target_event_name: "初当たり経由の上位ST突入"
+    judgement_type: "estimated"
+    confidence: "medium"
+    candidate_strength: "strong_candidate"
+    conditions:
+      all:
+        - relation: "bonus_section_from_initial_hit"
+          field: "accumulated_actual_payout"
+          operator: "between_inclusive"
+          min: 1000
+          max: 1499
+        - relation: "following_event"
+          description: "当該区間の後に、たい焼き経由の直とらぶるボーナス候補が観測される。"
+    interpretation: >-
+      初当たり経由の同一ボーナス区間が実獲得1000〜1499枚で切断し、
+      たい焼き直AT候補が続く場合、下位のみでは1500枚未満で切断しないため、
+      その区間で上位STに突入していた可能性が高い。
+    caution: >-
+      たい焼き直AT自体が推定判定である。たい焼き候補が観測されない場合、
+      実獲得1000〜1499枚だけでは上位ST突入と確定しない。
+    source_class: "provided_machine_spec"
+
+  - rule_id: "do_not_judge_upper_st_from_payout_1000_only"
+    judgement_type: "estimated"
+    instruction: >-
+      初当たり経由の区間内実獲得が1000枚以上であることだけを、
+      上位ST突入の根拠にしてはならない。
+    reason: >-
+      下位のみの区間の切断閾値は1500枚である。1000枚到達後も上位に入らなければ
+      1500枚未満では有利区間を切断せず継続する。
+    source_class: "provided_machine_spec"
 
 unmatched_event_policy:
   classification: "unclassified"
   instructions:
     - "いずれの確定条件にも一致しないBBを、推測だけで確定イベントへ分類しない。"
     - "たい焼き推定条件だけに一致する場合はestimatedのまま保持する。"
+    - "区間内実獲得1000枚以上であることだけを理由に、上位ST突入へ分類しない。"
     - "複数ルールが競合した場合は、confirmedをestimatedより優先する。"
     - "confirmed同士が競合した場合はデータ異常として記録し、自動確定しない。"
+    - "session_judgementsはイベント単位のconfirmed_judgements・estimated_judgementsと混在させない。"
 
 recommended_output_fields:
   - "judged_event_id"

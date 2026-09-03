@@ -1,0 +1,25 @@
+{
+  "source_store_id": 100928,
+  "store_name": "エスパス日拓秋葉原駅前店",
+  "model_name": "L ToLOVEるﾀﾞｰｸﾈｽver.8.7",
+  "model_id": 1,
+  "machine_code": "M0001",
+  "machine_id": 1,
+  "unit_number": 3075,
+  "hold": {
+    "games": 30,
+    "coins": 50,
+    "coins_per_game": 1.6666666666666667
+  },
+  "formula": "delta = payout - start_count * 50 / 30 ; slump = cumsum(delta)",
+  "date_from": "2026-08-12",
+  "date_to": "2026-09-01",
+  "n_days": 19,
+  "n_events": 995,
+  "n_official_points": 334,
+  "mean_corr": 0.7285,
+  "mean_final_diff": -478.7,
+  "mean_rmse": 811.3,
+  "mean_n_official": 15.8,
+  "mean_n_derived_events": 52.4
+}
